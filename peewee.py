@@ -2574,6 +2574,22 @@ class Query(Node):
         if not isinstance(dest, SelectQuery):
             self._query_ctx = dest
 
+    def plus(self, *foreign_keys):
+        query = self.clone()
+        original_model_class = query.model_class
+        model_class = original_model_class
+        for fk in foreign_keys:
+            if model_class == fk.model_class:
+                alias = fk.rel_model.alias()
+                query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
+                query._select += query._model_shorthand(alias.get_proxy_fields())
+                query._explicit_selection = True
+                model_class = fk.rel_model
+            elif query._query_ctx == fk.rel_model:
+                raise Exception("to-many unsupported")
+        query = query.switch(original_model_class)
+        return query
+
     @returns_clone
     def switch(self, model_class=None):
         """Change or reset the query context."""
