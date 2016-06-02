@@ -1519,8 +1519,10 @@ class QueryCompiler(object):
             'strip_parens': self._parse_strip_parens,
         }
 
+    QUOTE_OK = re.compile(r'[a-zA-Z]\w*$')
+    
     def quote(self, s, force_quote=False):
-        if not force_quote and re.match(r'[a-zA-Z]\w*$', s) and s.upper() not in SQL_RESERVED_WORDS:
+        if not force_quote and self.QUOTE_OK.match(s) and s.upper() not in SQL_RESERVED_WORDS:
           return s
         return '%s%s%s' % (self.quote_char, s, self.quote_char)
 
