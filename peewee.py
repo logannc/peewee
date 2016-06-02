@@ -2581,9 +2581,13 @@ class Query(Node):
         for fk in foreign_keys:
             if model_class == fk.model_class:
                 alias = fk.rel_model.alias()
-                query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
-                query._select += query._model_shorthand(alias.get_proxy_fields())
-                query._explicit_selection = True
+                already_joined_this_path = False
+                for join in query._joins[model_class]:
+                    if join.on==fk:
+                        already_joined_this_path = True
+                if not already_joined_this_path:
+                    query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
+                    query._select += query._model_shorthand(alias.get_proxy_fields())
                 model_class = fk.rel_model
             elif query._query_ctx == fk.rel_model:
                 raise Exception("to-many unsupported")
@@ -4508,10 +4512,20 @@ class BaseModel(type):
         if hasattr(cls, 'validate_model'):
             cls.validate_model()
 
+        # set up the ALL constant
+        cls.ALL = MagicAll(cls)
+
         return cls
 
     def __iter__(self):
         return iter(self.select())
+        
+class MagicAll(object):
+    def __init__(self, cls):
+        self.__dict__['cls'] = cls
+    def __getattr__(self, name):
+        return getattr(self.__dict__['cls'].select(), name)
+    
 
 class Model(with_metaclass(BaseModel)):
     def __init__(self, *args, **kwargs):
