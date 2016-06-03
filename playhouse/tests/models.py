@@ -266,6 +266,8 @@ class Computer(TestModel):
     memory = ForeignKeyField(Component, related_name='c2')
     processor = ForeignKeyField(Component, related_name='c3')
 
+class EthernetPort(TestModel):
+    computer = ForeignKeyField(Computer)
 
 class CheckModel(TestModel):
     value = IntegerField(constraints=[Check('value > 0')])

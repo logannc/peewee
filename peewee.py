@@ -2583,9 +2583,11 @@ class Query(Node):
                 alias = fk.rel_model.alias()
                 already_joined_this_path = False
                 for join in query._joins[model_class]:
-                    if join.on==fk:
+                    if join.on is fk:
                         already_joined_this_path = True
-                if not already_joined_this_path:
+                if already_joined_this_path:
+                    query = query.switch(join.dest)
+                else:
                     query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
                     query._select += query._model_shorthand(alias.get_proxy_fields())
                 model_class = fk.rel_model
@@ -4523,6 +4525,10 @@ class BaseModel(type):
 class MagicAll(object):
     def __init__(self, cls):
         self.__dict__['cls'] = cls
+        
+    def __iter__(self):
+      return self.__dict__['cls'].select().__iter__()
+      
     def __getattr__(self, name):
         return getattr(self.__dict__['cls'].select(), name)
     
