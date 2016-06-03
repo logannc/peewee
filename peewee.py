@@ -2575,20 +2575,27 @@ class Query(Node):
             self._query_ctx = dest
 
     def plus(self, *foreign_keys):
+        def same_path(p1, p2):
+          if len(p1) != len(p2): return False
+          return min([p1[i] is p2[i] for i in range(len(p1))])
         query = self.clone()
         original_model_class = query.model_class
         model_class = original_model_class
-        for fk in foreign_keys:
+        for i, fk in enumerate(foreign_keys):
+            fk_path = foreign_keys[:i+1]
             if model_class == fk.model_class:
                 alias = fk.rel_model.alias()
                 already_joined_this_path = False
                 for join in query._joins[model_class]:
-                    if join.on is fk:
+                    if same_path(join._path, fk_path):
                         already_joined_this_path = True
                 if already_joined_this_path:
                     query = query.switch(join.dest)
                 else:
+                    tmp_ctx = query._query_ctx
                     query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
+                    join = query._joins[tmp_ctx][-1]
+                    join._path = fk_path
                     query._select += query._model_shorthand(alias.get_proxy_fields())
                 model_class = fk.rel_model
             elif query._query_ctx == fk.rel_model:

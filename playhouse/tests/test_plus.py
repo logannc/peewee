@@ -22,7 +22,7 @@ from playhouse.tests.models import *
 
 
 class TestPlusQueries(ModelTestCase):
-    requires = [User, Blog, Comment, Relationship, Component, Computer, EthernetPort]
+    requires = [User, Blog, Comment, Category, CommentCategory, Relationship, Component, Computer, EthernetPort]
 
     def setUp(self):
         self._orig_db = test_db
@@ -48,6 +48,11 @@ class TestPlusQueries(ModelTestCase):
         user2 = User.create(username='username2')
         blog = Blog.create(user=user, title='title')
         comment = Comment.create(blog=blog, comment='comment')
+        category1 = Category.create(name='category1')
+        category2 = Category.create(name='category2', parent=category1)
+        category3 = Category.create(name='category3', parent=category2)
+        category4 = Category.create(name='category4', parent=category3)
+        comment_category = CommentCategory.create(comment=comment, category=category1)
         rel = Relationship.create(from_user=user, to_user=user2)
         
         hard_drive = Component.create(name='hard_drive')
@@ -67,25 +72,43 @@ class TestPlusQueries(ModelTestCase):
           blog = Blog.ALL.get()
           self.assertEqual(list(Blog.ALL), [blog])
         
-    def test_plus_basic(self):
+    def test_basic(self):
         with self.assertQueryCount(1):
           blog = Blog.ALL.plus(Blog.user).get()
           self.assertEqual(blog.title, 'title')
           self.assertEqual(blog.user.username, 'username')
         
-    def test_plus_two_deep(self):
+    def test_two_deep(self):
         with self.assertQueryCount(1):
           comment = Comment.ALL.plus(Comment.blog, Blog.user).get()
           self.assertEqual(comment.blog.title, 'title')
           self.assertEqual(comment.blog.user.username, 'username')
         
-    def test_plus_repeated_calls_do_nothing(self):
+    def test_three_deep(self):
+        with self.assertQueryCount(1):
+          cc = CommentCategory.select(CommentCategory).plus(CommentCategory.comment, Comment.blog, Blog.user).first()
+          self.assertEqual(cc.comment.comment, 'comment')
+          self.assertEqual(cc.comment.blog.title, 'title')
+          self.assertEqual(cc.comment.blog.user.username, 'username')
+        
+    def test_three_deep_with_category(self):
+        with self.assertQueryCount(1):
+          cc = CommentCategory.select(CommentCategory) \
+              .plus(CommentCategory.category) \
+              .plus(CommentCategory.comment, Comment.blog, Blog.user) \
+              .first()
+          self.assertEqual(cc.category.name, 'category1')
+          self.assertEqual(cc.comment.comment, 'comment')
+          self.assertEqual(cc.comment.blog.title, 'title')
+          self.assertEqual(cc.comment.blog.user.username, 'username')
+        
+    def test_repeated_calls_do_nothing(self):
         with self.assertQueryCount(1):
           blog = Blog.ALL.plus(Blog.user).plus(Blog.user).get()
           self.assertEqual(blog.title, 'title')
           self.assertEqual(blog.user.username, 'username')
         
-    def test_plus_fk_to_same_table(self):
+    def test_fk_to_same_table(self):
         with self.assertQueryCount(1):
           rel = Relationship.ALL \
               .plus(Relationship.from_user) \
@@ -94,7 +117,7 @@ class TestPlusQueries(ModelTestCase):
           self.assertEqual(rel.from_user.username, 'username')
           self.assertEqual(rel.to_user.username, 'username2')
           
-    def test_plus_fk_to_same_table_one_layer_in(self):
+    def test_fk_to_same_table_one_layer_in(self):
         with self.assertQueryCount(1):
           ethernet_port = EthernetPort.ALL \
               .plus(EthernetPort.computer, Computer.hard_drive) \
@@ -105,4 +128,29 @@ class TestPlusQueries(ModelTestCase):
           self.assertEqual(ethernet_port.computer.memory.name, 'memory')
           self.assertEqual(ethernet_port.computer.processor.name, 'processor')
           
+    def test_same_table_down(self):
+        with self.assertQueryCount(1):
+            category = Category.ALL.plus(Category.parent).where(Category.name=='category4').get()
+            self.assertEqual(category.name, 'category4')
+            self.assertEqual(category.parent.name, 'category3')
+            
+    def test_same_table_two_down(self):
+        with self.assertQueryCount(1):
+            category = Category.ALL \
+                .plus(Category.parent, Category.parent) \
+                .where(Category.name=='category4').get()
+            self.assertEqual(category.name, 'category4')
+            self.assertEqual(category.parent.name, 'category3')
+            self.assertEqual(category.parent.parent.name, 'category2')
+            
+    def test_same_table_three_down(self):
+        with self.assertQueryCount(1):
+            category = Category.ALL \
+                .plus(Category.parent, Category.parent, Category.parent) \
+                .where(Category.name=='category4').get()
+            self.assertEqual(category.name, 'category4')
+            self.assertEqual(category.parent.name, 'category3')
+            self.assertEqual(category.parent.parent.name, 'category2')
+            self.assertEqual(category.parent.parent.parent.name, 'category1')
+            
 
