@@ -16,7 +16,6 @@ from playhouse.tests.test_models import *
 from playhouse.tests.test_queries import *
 from playhouse.tests.test_query_results import *
 from playhouse.tests.test_transactions import *
-from playhouse.tests.test_postgres import *
 from playhouse.tests.test_plus import *
 
 

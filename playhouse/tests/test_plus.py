@@ -67,13 +67,17 @@ class TestPlusQueries(ModelTestCase):
             kwargs['timeout'] = 30
 
         self.db = DatabaseQueryCounter(self.new_connection())
+        self._orig_dbs = {}
         for tbl in self.requires:
+            self._orig_dbs[tbl] = tbl._meta.database
             tbl._meta.database = self.db
         
         super(TestPlusQueries, self).setUp()
 
     def tearDown(self):
-        User._meta.database = self._orig_db
+        for tbl, orig_db in self._orig_dbs.items():
+          tbl._meta.database = orig_db
+        test_db.close()
         super(TestPlusQueries, self).tearDown()
 
     def test_plus_queries(self):
