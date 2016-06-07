@@ -78,9 +78,29 @@ class TestPlusQueries(ModelTestCase):
           self.assertEqual(blog.title, 'title')
           self.assertEqual(blog.user.username, 'username')
         
+    def test_basic_where(self):
+        with self.assertQueryCount(1):
+          blog = Blog.ALL.plus(Blog.user).where(Blog.title=='title').get()
+          self.assertEqual(blog.title, 'title')
+          self.assertEqual(blog.user.username, 'username')
+        
     def test_two_deep(self):
         with self.assertQueryCount(1):
           comment = Comment.ALL.plus(Comment.blog, Blog.user).get()
+          self.assertEqual(comment.blog.title, 'title')
+          self.assertEqual(comment.blog.user.username, 'username')
+        
+    def test_two_deep_where(self):
+        with self.assertQueryCount(1):
+          comment = Comment.ALL.plus(Comment.blog, Blog.user).where(User.username=='username').get()
+          self.assertEqual(comment.blog.title, 'title')
+          self.assertEqual(comment.blog.user.username, 'username')
+        with self.assertQueryCount(1):
+          comment = Comment.ALL.plus(Comment.blog, Blog.user).where(Comment.comment=='comment').get()
+          self.assertEqual(comment.blog.title, 'title')
+          self.assertEqual(comment.blog.user.username, 'username')
+        with self.assertQueryCount(1):
+          comment = Comment.ALL.plus(Comment.blog, Blog.user).where((User.username=='username') & (Comment.comment=='comment')).get()
           self.assertEqual(comment.blog.title, 'title')
           self.assertEqual(comment.blog.user.username, 'username')
         
