@@ -1413,6 +1413,10 @@ class AliasMap(object):
         self._alias_map[obj] = alias or '%s%s' % (self.prefix, self._counter)
 
     def __getitem__(self, obj):
+        try:
+            hash(obj) # python3
+        except TypeError:
+            return None
         if obj not in self._alias_map:
             self.add(obj)
         return self._alias_map[obj]
@@ -1779,7 +1783,7 @@ class QueryCompiler(object):
             if query._from is None:
                 clauses.append(model.as_entity().alias(alias_map[model]))
             else:
-                [alias_map[x] for x in query._from if not isinstance(x, Clause)] # seed the alias map
+                [alias_map[x] for x in query._from] # seed the alias map
                 clauses.append(CommaClause(*query._from))
 
         if query._windows is not None:
