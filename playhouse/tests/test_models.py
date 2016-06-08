@@ -154,8 +154,8 @@ class TestQueryingModels(ModelTestCase):
         sql, params = normal_compiler.generate_update(query)
         self.assertEqual(sql, (
             'UPDATE "users" SET "username" = ('
-            'SELECT COUNT("t2"."pk") FROM "blog" AS t2 '
-            'WHERE ("t2"."user_id" = "users"."id"))'))
+            'SELECT COUNT("b1"."pk") FROM "blog" AS b1 '
+            'WHERE ("b1"."user_id" = "users"."id"))'))
         self.assertEqual(query.execute(), 3)
 
         usernames = [u.username for u in User.select().order_by(User.id)]
@@ -182,8 +182,8 @@ class TestQueryingModels(ModelTestCase):
         sql, params = normal_compiler.generate_insert(iq)
         self.assertEqual(sql, (
             'INSERT INTO "users" ("username") '
-            'SELECT LOWER("t2"."username") FROM "users" AS t2 '
-            'WHERE ("t2"."username" IN (?, ?))'))
+            'SELECT LOWER("u1"."username") FROM "users" AS u1 '
+            'WHERE ("u1"."username" IN (?, ?))'))
         self.assertEqual(params, ['U0', 'U2'])
 
         iq.execute()
@@ -1186,7 +1186,7 @@ class TestMultiTableFromClause(ModelTestCase):
         # will expect that.
         outer = (User
                  .select(User.username)
-                 .from_(inner.alias('t1')))
+                 .from_(inner.alias('u1')))
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
             'SELECT "users"."username" FROM '
@@ -1203,7 +1203,7 @@ class TestMultiTableFromClause(ModelTestCase):
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
             'SELECT "t1"."name" FROM '
-            '(SELECT "users"."username" AS name FROM "users" AS users) AS u1'))
+            '(SELECT "users"."username" AS name FROM "users" AS users) AS t1'))
 
         query = outer.order_by(inner.c.name.desc())
         self.assertEqual([u[0] for u in query.tuples()], ['u1', 'u0'])
@@ -1279,12 +1279,12 @@ class TestDeleteRecursive(ModelTestCase):
                       'SET `child_id` = %% '
                       'WHERE ('
                       '`childnullabledata`.`child_id` IN ('
-                      'SELECT `t2`.`id` FROM `child` AS t2 WHERE ('
-                      '`t2`.`parent_id` = %%)))')
+                      'SELECT `c1`.`id` FROM `child` AS c1 WHERE ('
+                      '`c1`.`parent_id` = %%)))')
         delete_cp = ('DELETE FROM `childpet` WHERE ('
                      '`child_id` IN ('
-                     'SELECT `t1`.`id` FROM `child` AS t1 WHERE ('
-                     '`t1`.`parent_id` = %%)))')
+                     'SELECT `c1`.`id` FROM `child` AS c1 WHERE ('
+                     '`c1`.`parent_id` = %%)))')
         delete_c = 'DELETE FROM `child` WHERE (`parent_id` = %%)'
         update_o = ('UPDATE `orphan` SET `parent_id` = %% WHERE ('
                     '`orphan`.`parent_id` = %%)')
