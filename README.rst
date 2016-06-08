@@ -8,6 +8,9 @@ Because of this, I made Herman as a light fork of peewee (2.8.1) implementing so
 This is mostly for my company's internal use, but anyone else is free to use it.  I'm maintaining full API compatibility as a 
 drop in replacement for peewee 2.x.
 
+.. image:: https://api.travis-ci.org/keredson/peewee.png?branch=master
+  :target: https://travis-ci.org/keredson/peewee
+
 
 peewee
 ======
@@ -25,9 +28,6 @@ Peewee is a simple and small ORM. It has few (but expressive) concepts, making i
   * `Connection pool <http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#pool>`_
   * `Encryption <http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#sqlcipher-ext>`_
   * `and much, much more... <http://docs.peewee-orm.com/en/latest/peewee/playhouse.html>`_
-
-.. image:: https://api.travis-ci.org/coleifer/peewee.png?branch=master
-  :target: https://travis-ci.org/coleifer/peewee
 
 New to peewee? Here is a list of documents you might find most helpful when getting
 started:
