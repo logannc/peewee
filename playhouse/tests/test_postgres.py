@@ -460,9 +460,9 @@ class TestTSVectorField(BasePostgresqlExtTestCase):
     def test_sql(self):
         query = FTSModel.select().where(Match(FTSModel.data, 'foo bar'))
         self.assertEqual(query.sql(), (
-            'SELECT "f1"."id", "f1"."title", "f1"."data", "f1"."fts_data" '
-            'FROM "ftsmodel" AS f1 '
-            'WHERE (to_tsvector("f1"."data") @@ to_tsquery(%s))',
+            'SELECT f1.id, f1.title, f1."data", f1.fts_data '
+            'FROM ftsmodel AS f1 '
+            'WHERE (to_tsvector(f1."data") @@ to_tsquery(%s))',
             ['foo bar']
         ))
 
@@ -710,8 +710,8 @@ class BaseJsonFieldTestCase(object):
              .where(self.ModelClass.data == {'foo': 'bar'}))
         sql, params = j.sql()
         self.assertEqual(sql.replace('b1', 't1'), (
-            'SELECT "t1"."id", "t1"."data" '
-            'FROM "%s" AS t1 WHERE ("t1"."data" = %%s)')
+            'SELECT t1.id, t1."data" '
+            'FROM %s AS t1 WHERE (t1."data" = %%s)')
             % self.ModelClass._meta.db_table)
         self.assertEqual(params[0].adapted, {'foo': 'bar'})
 
@@ -720,8 +720,8 @@ class BaseJsonFieldTestCase(object):
              .where(self.ModelClass.data['foo'] == 'bar'))
         sql, params = j.sql()
         self.assertEqual(sql.replace('b1', 't1'), (
-            'SELECT "t1"."id", "t1"."data" '
-            'FROM "%s" AS t1 WHERE ("t1"."data"->>%%s = %%s)')
+            'SELECT t1.id, t1."data" '
+            'FROM %s AS t1 WHERE (t1."data"->>%%s = %%s)')
             % self.ModelClass._meta.db_table)
         self.assertEqual(params, ['foo', 'bar'])
 

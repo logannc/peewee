@@ -794,9 +794,9 @@ class TestRowIDField(ModelTestCase):
         query = RowIDModel.select().where(RowIDModel.rowid == 2)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'SELECT "r1"."data" '
-            'FROM "rowidmodel" AS r1 '
-            'WHERE ("r1"."rowid" = ?)'))
+            'SELECT r1."data" '
+            'FROM rowidmodel AS r1 '
+            'WHERE (r1.rowid = ?)'))
         self.assertEqual(params, [2])
         r_db = query.get()
         self.assertEqual(r_db.rowid, None)

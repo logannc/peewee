@@ -153,9 +153,9 @@ class TestQueryingModels(ModelTestCase):
         query = User.update(username=subquery)
         sql, params = normal_compiler.generate_update(query)
         self.assertEqual(sql, (
-            'UPDATE "users" SET "username" = ('
-            'SELECT COUNT("b1"."pk") FROM "blog" AS b1 '
-            'WHERE ("b1"."user_id" = "users"."id"))'))
+            'UPDATE users SET username = ('
+            'SELECT COUNT(b1.pk) FROM blog AS b1 '
+            'WHERE (b1.user_id = users.id))'))
         self.assertEqual(query.execute(), 3)
 
         usernames = [u.username for u in User.select().order_by(User.id)]
@@ -181,9 +181,9 @@ class TestQueryingModels(ModelTestCase):
         iq = User.insert_from([User.username], subquery)
         sql, params = normal_compiler.generate_insert(iq)
         self.assertEqual(sql, (
-            'INSERT INTO "users" ("username") '
-            'SELECT LOWER("u1"."username") FROM "users" AS u1 '
-            'WHERE ("u1"."username" IN (?, ?))'))
+            'INSERT INTO users (username) '
+            'SELECT LOWER(u1.username) FROM users AS u1 '
+            'WHERE (u1.username IN (?, ?))'))
         self.assertEqual(params, ['U0', 'U2'])
 
         iq.execute()
@@ -1201,8 +1201,8 @@ class TestMultiTableFromClause(ModelTestCase):
                  .from_(inner.alias('u1')))
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
-            'SELECT "users"."username" FROM '
-            '(SELECT "users"."username" FROM "users" AS users) AS u1'))
+            'SELECT users.username FROM '
+            '(SELECT users.username FROM users AS users) AS u1'))
 
         self.assertEqual(
             [u.username for u in outer.order_by(User.username)], ['u0', 'u1'])

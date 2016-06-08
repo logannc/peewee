@@ -49,9 +49,9 @@ class TestHybrid(ModelTestCase):
         query = Interval.select().where(Interval.length == 4)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'SELECT "i1"."id", "i1"."start", "i1"."end" '
+            'SELECT i1.id, i1."start", i1."end" '
             'FROM "interval" AS i1 '
-            'WHERE (("i1"."end" - "i1"."start") = ?)'))
+            'WHERE ((i1."end" - i1."start") = ?)'))
         self.assertEqual(params, [4])
 
         results = sorted(
@@ -68,9 +68,9 @@ class TestHybrid(ModelTestCase):
         query = Interval.select().where(Interval.contains(2))
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'SELECT "i1"."id", "i1"."start", "i1"."end" '
+            'SELECT i1.id, i1."start", i1."end" '
             'FROM "interval" AS i1 '
-            'WHERE (("i1"."start" <= ?) AND ("i1"."end" > ?))'))
+            'WHERE ((i1."start" <= ?) AND (i1."end" > ?))'))
         self.assertEqual(params, [2, 2])
 
         results = sorted(
@@ -87,9 +87,9 @@ class TestHybrid(ModelTestCase):
         query = Interval.select().where(Interval.radius == 2)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'SELECT "i1"."id", "i1"."start", "i1"."end" '
+            'SELECT i1.id, i1."start", i1."end" '
             'FROM "interval" AS i1 '
-            'WHERE ((abs("i1"."end" - "i1"."start") / ?) = ?)'))
+            'WHERE ((abs(i1."end" - i1."start") / ?) = ?)'))
         self.assertEqual(params, [2, 2])
 
         results = sorted(
