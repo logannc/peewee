@@ -1824,7 +1824,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         sql, params = query.sql()
         self.assertEqual(sql, (
             'INSERT INTO person ("first", "last", "data") '
-            'VALUES (%s, %s, %s) RETURNING first, last'))
+            'VALUES (%s, %s, %s) RETURNING "first", "last"'))
         self.assertEqual(params, ['huey', 'leifer', 3])
 
         res = query.execute()
