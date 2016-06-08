@@ -22,7 +22,7 @@ from playhouse.tests.models import *
 
 
 class TestPlusQueries(ModelTestCase):
-    requires = [User, Blog, Comment, Category, CommentCategory, Relationship, Component, Computer, EthernetPort]
+    requires = [User, Blog, Comment, Category, CommentCategory, Relationship, Component, Computer, EthernetPort, Manufacturer]
 
     def setUp(self):
         self._orig_db = test_db
