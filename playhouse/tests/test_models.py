@@ -1789,7 +1789,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = User.insert(username='charlie', data=1337)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO users (username, data) '
+            'INSERT INTO users (username, "data") '
             'VALUES (%s, %s) RETURNING username'))
         self.assertEqual(params, ['charlie', 1337])
 
@@ -1823,7 +1823,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = Person.insert(first='huey', last='leifer', data=3)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO person (first, last, data) '
+            'INSERT INTO person ("first", "last", "data") '
             'VALUES (%s, %s, %s) RETURNING first, last'))
         self.assertEqual(params, ['huey', 'leifer', 3])
 
