@@ -1,4 +1,13 @@
-.. image:: http://media.charlesleifer.com/blog/photos/p1423749536.32.png
+
+Herman
+======
+The ORM peewee is currently going through a major 3.0 rewrite and isn't accepting many (any?) new features for the 2.x line.
+
+Because of this, I made Herman as a light fork of peewee (2.8.1) implementing some syntactic sugar I've liked from other ORMs.
+
+This is mostly for my company's internal use, but anyone else is free to use it.  I'm maintaining full API compatibility as a 
+drop in replacement for peewee 2.x.
+
 
 peewee
 ======
