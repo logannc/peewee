@@ -27,6 +27,7 @@ import threading
 import uuid
 from bisect import bisect_left
 from bisect import bisect_right
+from collections import defaultdict
 from collections import deque
 from collections import namedtuple
 try:
@@ -1412,9 +1413,24 @@ class AliasMap(object):
         self._alias_map[obj] = alias or '%s%s' % (self.prefix, self._counter)
 
     def __getitem__(self, obj):
+        try:
+            hash(obj) # python3
+        except TypeError:
+            return None
         if obj not in self._alias_map:
             self.add(obj)
         return self._alias_map[obj]
+
+    def lookup(self, obj, loose=True):
+        if obj in self._alias_map:
+            return self._alias_map[obj]
+        if loose and issubclass(obj, Model):
+          possible_aliases = [x for x in self._alias_map.keys() if isinstance(x,ModelAlias) and x.model_class==obj]
+          if len(possible_aliases) == 1:
+            return self._alias_map[possible_aliases[0]]
+          if len(possible_aliases) > 1:
+            raise ProgrammingError('more than one %s is part of this query - please use an alias to avoid ambiguity' % obj)
+        raise ProgrammingError('%s is not a part of this query' % obj)
 
     def __contains__(self, obj):
         return obj in self._alias_map
@@ -1566,7 +1582,7 @@ class QueryCompiler(object):
     def _parse_field(self, node, alias_map, conv):
         if alias_map:
             sql = '.'.join((
-                self.quote(alias_map[node.model_class]),
+                self.quote(alias_map.lookup(node.model_class)),
                 self.quote(node.db_column)))
         else:
             sql = self.quote(node.db_column)
@@ -1767,6 +1783,7 @@ class QueryCompiler(object):
             if query._from is None:
                 clauses.append(model.as_entity().alias(alias_map[model]))
             else:
+                [alias_map[x] for x in query._from] # seed the alias map
                 clauses.append(CommaClause(*query._from))
 
         if query._windows is not None:
@@ -2506,7 +2523,7 @@ class Query(Node):
 
         self._dirty = True
         self._query_ctx = model_class
-        self._joins = {self.model_class: []}  # Join graph as adjacency list.
+        self._joins = defaultdict(list)  # Join graph as adjacency list like: {self.model_class: []}
         self._where = None
 
     def __repr__(self):
@@ -2526,8 +2543,10 @@ class Query(Node):
         return query
 
     def _clone_joins(self):
-        return dict(
-            (mc, list(j)) for mc, j in self._joins.items())
+        new_dict = defaultdict(list)
+        for mc, j in self._joins.items():
+          new_dict[mc] = list(j)
+        return new_dict
 
     def _add_query_clauses(self, initial, expressions, conjunction=None):
         reduced = reduce(operator.and_, expressions)
@@ -2569,10 +2588,38 @@ class Query(Node):
                 raise ValueError('A join condition must be specified.')
         elif isinstance(on, basestring):
             on = src._meta.fields[on]
-        self._joins.setdefault(src, [])
         self._joins[src].append(Join(src, dest, join_type, on))
         if not isinstance(dest, SelectQuery):
             self._query_ctx = dest
+
+    def plus(self, *foreign_keys):
+        def same_path(p1, p2):
+          if len(p1) != len(p2): return False
+          return min([p1[i] is p2[i] for i in range(len(p1))])
+        query = self.clone()
+        original_model_class = query.model_class
+        model_class = original_model_class
+        for i, fk in enumerate(foreign_keys):
+            fk_path = foreign_keys[:i+1]
+            if model_class == fk.model_class:
+                alias = fk.rel_model.alias()
+                already_joined_this_path = False
+                for join in query._joins[model_class]:
+                    if same_path(join._path, fk_path):
+                        already_joined_this_path = True
+                if already_joined_this_path:
+                    query = query.switch(join.dest)
+                else:
+                    tmp_ctx = query._query_ctx
+                    query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
+                    join = query._joins[tmp_ctx][-1]
+                    join._path = fk_path
+                    query._select += query._model_shorthand(alias.get_proxy_fields())
+                model_class = fk.rel_model
+            elif query._query_ctx == fk.rel_model:
+                raise Exception("to-many unsupported")
+        query = query.switch(original_model_class)
+        return query
 
     @returns_clone
     def switch(self, model_class=None):
@@ -2581,7 +2628,7 @@ class Query(Node):
 
     def ensure_join(self, lm, rm, on=None):
         ctx = self._query_ctx
-        for join in self._joins.get(lm, []):
+        for join in self._joins[lm]:
             if join.dest == rm:
                 return self
         return self.switch(lm).join(rm, on=on).switch(ctx)
@@ -3412,7 +3459,8 @@ class Database(object):
                 raise Exception('Error, database not properly initialized '
                                 'before closing connection')
             with self.exception_wrapper():
-                self._close(self.__local.conn)
+                if self.__local.conn is not None:
+                    self._close(self.__local.conn)
                 self.__local.closed = True
 
     def get_conn(self):
@@ -4492,10 +4540,24 @@ class BaseModel(type):
         if hasattr(cls, 'validate_model'):
             cls.validate_model()
 
+        # set up the ALL constant
+        cls.ALL = MagicAll(cls)
+
         return cls
 
     def __iter__(self):
         return iter(self.select())
+        
+class MagicAll(object):
+    def __init__(self, cls):
+        self.__dict__['cls'] = cls
+        
+    def __iter__(self):
+      return self.__dict__['cls'].select().__iter__()
+      
+    def __getattr__(self, name):
+        return getattr(self.__dict__['cls'].select(), name)
+    
 
 class Model(with_metaclass(BaseModel)):
     def __init__(self, *args, **kwargs):
