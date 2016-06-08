@@ -122,8 +122,8 @@ class TestSQLAll(PeeweeTestCase):
         sql = UniqueModel.sqlall()
         self.assertEqual(sql, [
             ('CREATE TABLE uniquemodel (id INTEGER NOT NULL PRIMARY KEY, '
-             'name VARCHAR(255) NOT NULL)'),
-            'CREATE UNIQUE INDEX uniquemodel_name ON uniquemodel (name)',
+             '"name" VARCHAR(255) NOT NULL)'),
+            'CREATE UNIQUE INDEX uniquemodel_name ON uniquemodel ("name")',
         ])
 
         sql = MultiIndexModel.sqlall()

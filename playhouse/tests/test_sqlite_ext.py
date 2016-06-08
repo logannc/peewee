@@ -794,7 +794,7 @@ class TestRowIDField(ModelTestCase):
         query = RowIDModel.select().where(RowIDModel.rowid == 2)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'SELECT t1.data '
+            'SELECT t1."data" '
             'FROM rowidmodel AS t1 '
             'WHERE (t1.rowid = ?)'))
         self.assertEqual(params, [2])
@@ -893,7 +893,7 @@ class TestFTS5Extension(ModelTestCase):
     def test_search(self):
         query = FTS5Test.search('bb')
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc '
+            ('SELECT t1.title, t1."data", t1.misc '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY rank'),
             ['bb']))
@@ -901,7 +901,7 @@ class TestFTS5Extension(ModelTestCase):
 
         query = FTS5Test.search('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc, rank AS score '
+            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))
@@ -919,7 +919,7 @@ class TestFTS5Extension(ModelTestCase):
     def test_search_bm25(self):
         query = FTS5Test.search_bm25('bb')
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc '
+            ('SELECT t1.title, t1."data", t1.misc '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY rank'),
             ['bb']))
@@ -927,7 +927,7 @@ class TestFTS5Extension(ModelTestCase):
 
         query = FTS5Test.search_bm25('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc, rank AS score '
+            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))
@@ -939,7 +939,7 @@ class TestFTS5Extension(ModelTestCase):
     def test_search_bm25_scores(self):
         query = FTS5Test.search_bm25('bb', {'title': 5.0})
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc '
+            ('SELECT t1.title, t1."data", t1.misc '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY bm25(fts5test, ?, ?, ?)'),
             ['bb', 5.0, 1.0, 1.0]))
@@ -947,7 +947,7 @@ class TestFTS5Extension(ModelTestCase):
 
         query = FTS5Test.search_bm25('bb', {'title': 5.0}, True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc, '
+            ('SELECT t1.title, t1."data", t1.misc, '
              'bm25(fts5test, ?, ?, ?) AS score '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
@@ -961,7 +961,7 @@ class TestFTS5Extension(ModelTestCase):
         FTS5Test.set_rank('bm25(10.0, 1.0)')
         query = FTS5Test.search('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1.data, t1.misc, rank AS score '
+            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
              'FROM fts5test AS t1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))

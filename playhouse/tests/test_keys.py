@@ -312,7 +312,7 @@ class TestForeignKeyNonPrimaryKeyCreateTable(PeeweeTestCase):
             'CREATE TABLE cf ('
             'id INTEGER NOT NULL PRIMARY KEY, '
             'a_id VARCHAR(100) NOT NULL, '
-            'FOREIGN KEY (a_id) REFERENCES a (cf))')
+            'FOREIGN KEY (a_id) REFERENCES "a" (cf))')
 
         df_create, _ = compiler.create_table(DF)
         self.assertEqual(
@@ -320,7 +320,7 @@ class TestForeignKeyNonPrimaryKeyCreateTable(PeeweeTestCase):
             'CREATE TABLE df ('
             'id INTEGER NOT NULL PRIMARY KEY, '
             'a_id DECIMAL(4, 2) NOT NULL, '
-            'FOREIGN KEY (a_id) REFERENCES a (df))')
+            'FOREIGN KEY (a_id) REFERENCES "a" (df))')
 
 
 class TestDeferredForeignKey(ModelTestCase):
@@ -349,17 +349,17 @@ class TestDeferredForeignKey(ModelTestCase):
             query,
             'CREATE TABLE snippet '
             '(id INTEGER NOT NULL PRIMARY KEY, '
-            'code TEXT NOT NULL, '
+            '"code" TEXT NOT NULL, '
             'language_id INTEGER NOT NULL, '
-            'FOREIGN KEY (language_id) REFERENCES language (id)'
+            'FOREIGN KEY (language_id) REFERENCES "language" (id)'
             ')')
 
         query, params = compiler.create_table(Language)
         self.assertEqual(
             query,
-            'CREATE TABLE language '
+            'CREATE TABLE "language" '
             '(id INTEGER NOT NULL PRIMARY KEY, '
-            'name VARCHAR(255) NOT NULL, '
+            '"name" VARCHAR(255) NOT NULL, '
             'selected_snippet_id INTEGER)')
 
     def test_storage_retrieval(self):

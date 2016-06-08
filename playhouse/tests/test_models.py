@@ -1202,7 +1202,7 @@ class TestMultiTableFromClause(ModelTestCase):
                  .from_(inner))
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
-            'SELECT t1.name FROM '
+            'SELECT t1."name" FROM '
             '(SELECT users.username AS name FROM users AS users) AS t1'))
 
         query = outer.order_by(inner.c.name.desc())
@@ -1218,7 +1218,7 @@ class TestMultiTableFromClause(ModelTestCase):
         self.assertEqual(sql, (
             'SELECT q1.id, q1.username FROM ('
             'SELECT users.id, users.username FROM users AS users) AS q1 '
-            'INNER JOIN comment AS comment ON (q1.id = comment.id)'))
+            'INNER JOIN "comment" AS comment ON (q1.id = "comment".id)'))
 
     def test_join_on_query(self):
         u0 = User.get(User.username == 'u0')
@@ -1711,9 +1711,9 @@ class TestAliasBehavior(ModelTestCase):
         self.assertEqual(aliased_p, ['FOO'])
 
         expected = (
-            'SELECT uppermodel.id, uppermodel.data '
+            'SELECT uppermodel.id, uppermodel."data" '
             'FROM uppermodel AS uppermodel '
-            'WHERE (uppermodel.data = ?)')
+            'WHERE (uppermodel."data" = ?)')
 
         query = UpperModel.select().where(UpperModel.data == 'foo')
         sql, params = compiler.generate_select(query)

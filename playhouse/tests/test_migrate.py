@@ -581,12 +581,12 @@ class SqliteMigrationTestCase(BaseMigrationTestCase, PeeweeTestCase):
              'id INTEGER NOT NULL PRIMARY KEY, '
              'first VARCHAR(255) NOT NULL, '
              'last_name VARCHAR(255) NOT NULL, '
-             'data INTEGER NOT NULL)', []),
+             '"data" INTEGER NOT NULL)', []),
 
             # Copy data from original table into temporary table.
             ('INSERT INTO indexmodel__tmp__ '
-             '(id, first, last_name, data) '
-             'SELECT id, first_name, last_name, data '
+             '(id, "first", last_name, "data") '
+             'SELECT id, first_name, last_name, "data" '
              'FROM indexmodel', []),
 
             # Drop the original table.
@@ -597,7 +597,7 @@ class SqliteMigrationTestCase(BaseMigrationTestCase, PeeweeTestCase):
 
             # Re-create the indexes.
             ('CREATE UNIQUE INDEX indexmodel_data '
-             'ON indexmodel (data)', []),
+             'ON indexmodel ("data")', []),
             ('CREATE UNIQUE INDEX indexmodel_first_last_name '
              'ON indexmodel (first, last_name)', [])
         ])
