@@ -47,8 +47,8 @@ class TestCompoundSelectSQL(PeeweeTestCase):
         rhs = Beta.select(Beta.beta)
         sql, params = (lhs | rhs).sql()
         self.assertEqual(sql, (
-            'SELECT "a1"."alpha" FROM "alpha" AS a1 UNION '
-            'SELECT "b2"."beta" FROM "beta" AS b2'))
+            'SELECT a1.alpha FROM alpha AS a1 UNION '
+            'SELECT b2.beta FROM beta AS b2'))
 
         sql, params = (
             Alpha.select(Alpha.alpha) |

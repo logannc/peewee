@@ -313,10 +313,10 @@ class TestInsertEmptyModel(ModelTestCase):
         sql, params = compiler.generate_insert(query)
         if isinstance(test_db, MySQLDatabase):
             self.assertEqual(sql, (
-                'INSERT INTO "emptymodel" ("emptymodel"."id") '
+                'INSERT INTO emptymodel (emptymodel.id) '
                 'VALUES (DEFAULT)'))
         else:
-            self.assertEqual(sql, 'INSERT INTO "emptymodel" DEFAULT VALUES')
+            self.assertEqual(sql, 'INSERT INTO emptymodel DEFAULT VALUES')
         self.assertEqual(params, [])
 
         # Verify the query works.
@@ -1039,7 +1039,7 @@ class TestModelAPIs(ModelTestCase):
         gcs = list(GCModel.select().order_by(GCModel.id))
         first_five, last_five = gcs[:5], gcs[5:]
 
-        # The first five should all be "gcI", the last five will have
+        # The first five should all be gcI, the last five will have
         # "x-gcI" for their keys.
         self.assertEqual(
             [gc.key for gc in first_five],
@@ -1194,7 +1194,7 @@ class TestMultiTableFromClause(ModelTestCase):
         self.assertEqual(
             [u.username for u in inner.order_by(User.username)], ['u0', 'u1'])
 
-        # Have to manually specify the alias as "t1" because the outer query
+        # Have to manually specify the alias as t1 because the outer query
         # will expect that.
         outer = (User
                  .select(User.username)
@@ -1214,8 +1214,8 @@ class TestMultiTableFromClause(ModelTestCase):
                  .from_(inner))
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
-            'SELECT "t1"."name" FROM '
-            '(SELECT "users"."username" AS name FROM "users" AS users) AS t1'))
+            'SELECT t1."name" FROM '
+            '(SELECT users.username AS name FROM users AS users) AS t1'))
 
         query = outer.order_by(inner.c.name.desc())
         self.assertEqual([u[0] for u in query.tuples()], ['u1', 'u0'])
@@ -1228,9 +1228,9 @@ class TestMultiTableFromClause(ModelTestCase):
                  .join(Comment, on=(inner.c.id == Comment.id)))
         sql, params = compiler.generate_select(outer)
         self.assertEqual(sql, (
-            'SELECT "q1"."id", "q1"."username" FROM ('
-            'SELECT "users"."id", "users"."username" FROM "users" AS users) AS q1 '
-            'INNER JOIN "comment" AS comment ON ("q1"."id" = "comment"."id")'))
+            'SELECT q1.id, q1.username FROM ('
+            'SELECT users.id, users.username FROM users AS users) AS q1 '
+            'INNER JOIN "comment" AS comment ON (q1.id = "comment".id)'))
 
     def test_join_on_query(self):
         u0 = User.get(User.username == 'u0')
@@ -1337,7 +1337,7 @@ class TestDeleteRecursive(ModelTestCase):
             sql, params = queries[i]
             expected_sql, expected_params = expected[i]
             expected_sql = (expected_sql
-                            .replace('`', test_db.quote_char)
+                            .replace('`', '')
                             .replace('%%', test_db.interpolation))
             self.assertEqual(sql, expected_sql)
             self.assertEqual(params, expected_params)
@@ -1723,9 +1723,9 @@ class TestAliasBehavior(ModelTestCase):
         self.assertEqual(aliased_p, ['FOO'])
 
         expected = (
-            'SELECT "uppermodel"."id", "uppermodel"."data" '
-            'FROM "uppermodel" AS uppermodel '
-            'WHERE ("uppermodel"."data" = ?)')
+            'SELECT uppermodel.id, uppermodel."data" '
+            'FROM uppermodel AS uppermodel '
+            'WHERE (uppermodel."data" = ?)')
 
         query = UpperModel.select().where(UpperModel.data == 'foo')
         sql, params = compiler.generate_select(query)
@@ -1771,7 +1771,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = User.insert(username='charlie')
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO "users" ("username") VALUES (%s) RETURNING "id"'))
+            'INSERT INTO users (username) VALUES (%s) RETURNING id'))
         self.assertEqual(params, ['charlie'])
 
         result = query.execute()
@@ -1801,8 +1801,8 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = User.insert(username='charlie', data=1337)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO "users" ("username", "data") '
-            'VALUES (%s, %s) RETURNING "username"'))
+            'INSERT INTO users (username, "data") '
+            'VALUES (%s, %s) RETURNING username'))
         self.assertEqual(params, ['charlie', 1337])
 
         self.assertEqual(query.execute(), 'charlie')
@@ -1835,7 +1835,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = Person.insert(first='huey', last='leifer', data=3)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO "person" ("first", "last", "data") '
+            'INSERT INTO person ("first", "last", "data") '
             'VALUES (%s, %s, %s) RETURNING "first", "last"'))
         self.assertEqual(params, ['huey', 'leifer', 3])
 
@@ -1872,7 +1872,7 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = User.insert_many(data)
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO "users" ("username") '
+            'INSERT INTO users (username) '
             'VALUES (%s), (%s), (%s)'))
         self.assertEqual(params, usernames)
 
@@ -1887,8 +1887,8 @@ class TestInsertReturningModelAPI(PeeweeTestCase):
         query = User.insert_many(data).return_id_list()
         sql, params = query.sql()
         self.assertEqual(sql, (
-            'INSERT INTO "users" ("username") '
-            'VALUES (%s), (%s), (%s) RETURNING "id"'))
+            'INSERT INTO users (username) '
+            'VALUES (%s), (%s), (%s) RETURNING id'))
         self.assertEqual(params, usernames)
 
         res = list(query.execute())

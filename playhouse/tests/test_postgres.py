@@ -995,27 +995,28 @@ class TestIndexedField(PeeweeTestCase):
 
         create_sql, _ = compiler.create_table(TestIndexModel)
         self.assertEqual(create_sql, (
-            'CREATE TABLE "testindexmodel" ('
-            '"id" SERIAL NOT NULL PRIMARY KEY, '
-            '"array_index" VARCHAR(255)[] NOT NULL, '
-            '"array_noindex" INTEGER[] NOT NULL, '
-            '"fake_index" VARCHAR(255) NOT NULL, '
-            '"fake_index_with_type" VARCHAR(255) NOT NULL, '
-            '"fake_noindex" VARCHAR(255) NOT NULL)'))
+            'CREATE TABLE testindexmodel ('
+            'id SERIAL NOT NULL PRIMARY KEY, '
+            'array_index VARCHAR(255)[] NOT NULL, '
+            'array_noindex INTEGER[] NOT NULL, '
+            'fake_index VARCHAR(255) NOT NULL, '
+            'fake_index_with_type VARCHAR(255) NOT NULL, '
+            'fake_noindex VARCHAR(255) NOT NULL)'))
 
         all_sql = TestIndexModel.sqlall()
         tbl, array_idx, fake_idx, fake_idx_type = all_sql
         self.assertEqual(tbl, create_sql)
 
         self.assertEqual(array_idx, (
-            'CREATE INDEX "testindexmodel_array_index" ON "testindexmodel" '
-            'USING GIN ("array_index")'))
+            'CREATE INDEX testindexmodel_array_index ON testindexmodel '
+            'USING GIN (array_index)'))
 
         self.assertEqual(fake_idx, (
-            'CREATE INDEX "testindexmodel_fake_index" ON "testindexmodel" '
-            'USING GiST ("fake_index")'))
+            'CREATE INDEX testindexmodel_fake_index ON testindexmodel '
+            'USING GiST (fake_index)'))
 
         self.assertEqual(fake_idx_type, (
-            'CREATE INDEX "testindexmodel_fake_index_with_type" '
-            'ON "testindexmodel" '
-            'USING MAGIC ("fake_index_with_type")'))
+            'CREATE INDEX testindexmodel_fake_index_with_type '
+            'ON testindexmodel '
+            'USING MAGIC (fake_index_with_type)'))
+
