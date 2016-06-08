@@ -792,9 +792,9 @@ class TestSelectQuery(PeeweeTestCase):
         query = User.alias().select().where(User.username=='charlie')
         sql, params = normal_compiler.generate_select(query)
         self.assertEqual(sql, (
-            'SELECT "t1"."id", "t1"."username" '
-            'FROM "users" AS t1 '
-            'WHERE ("t1"."username" = ?)'))
+            'SELECT "u1"."id", "u1"."username" '
+            'FROM "users" AS u1 '
+            'WHERE ("u1"."username" = ?)'))
         self.assertEqual(params, ['charlie'])
 
     def test_select_from_ambiguous_implied_alias(self):
