@@ -39,6 +39,9 @@ from functools import wraps
 from inspect import isclass
 
 __version__ = '2.8.1'
+
+__herman_version__ = '1.0.0'
+
 __all__ = [
     'BareField',
     'BigIntegerField',
