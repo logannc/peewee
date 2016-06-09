@@ -338,7 +338,7 @@ Currently plus() only supports following foreign keys in their natural direction
 
 Which internally would use prefetch() to populate the article with all of its replies.
 
-This semantics for plus() have been co-opted from the `DKO <https://github.com/keredson/DKO>`_ project, which I authored for my former employer.  (DKO calls it with(), but "with" is a reserved word in Python.)  DKO's with() syntax has been in broad production use since 2010 by hundreds of developers hitting some of the largest conventional relational databases that exist.
+This semantics for plus() have been co-opted from the `DKO <https://github.com/keredson/DKO>`_ project, which I authored for my former employer.  (DKO calls it with(), but "with" is a reserved word in Python.)  DKO's with() syntax has been in broad production use since 2010 by hundreds of developers hitting some of the largest conventional relational databases that exist.  (Large like "auto-incremented ids had to be uint64 because uint32 wasn't enough". I worked on that change circa 2011. Fun times. :)
 
 
 
