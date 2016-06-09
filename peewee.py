@@ -1263,6 +1263,7 @@ class ForeignKeyField(IntegerField):
             raise TypeError('Unexpected value for `rel_model`.  Expected '
                             '`Model`, `Proxy`, `DeferredRelation`, or "self"')
         self.rel_model = rel_model
+        self.rel_alias = None
         self._related_name = related_name
         self.deferred = isinstance(rel_model, (Proxy, DeferredRelation))
         self.on_delete = on_delete
@@ -1362,6 +1363,11 @@ class ForeignKeyField(IntegerField):
 
     def coerce(self, value):
         return self.to_field.coerce(value)
+        
+    def as_(self, alias_name):
+        ret = self.clone()
+        ret.rel_alias = ModelAlias(self.rel_model, alias_name=alias_name)
+        return ret
 
     def db_value(self, value):
         if isinstance(value, self.rel_model):
@@ -2628,7 +2634,7 @@ class Query(Node):
         for i, fk in enumerate(foreign_keys):
             fk_path = foreign_keys[:i+1]
             if model_class == fk.model_class:
-                alias = fk.rel_model.alias()
+                alias = fk.rel_alias or fk.rel_model.alias()
                 already_joined_this_path = False
                 for join in query._joins[model_class]:
                     if same_path(join._path, fk_path):
@@ -4290,7 +4296,7 @@ class ModelAlias(object):
           return object.__hash__(self)
 
     def __eq__(self, other):
-        if self.__dict__['alias_name'] and other.__dict__['alias_name']:
+        if self.__dict__.get('alias_name') and other.__dict__.get('alias_name'):
           return (self.__dict__['model_class'], self.__dict__['alias_name']) == (other.__dict__['model_class'], other.__dict__['alias_name'])
         else:
           return id(self) == id(other)
