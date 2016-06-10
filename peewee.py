@@ -1266,7 +1266,6 @@ class ForeignKeyField(IntegerField):
             raise TypeError('Unexpected value for `rel_model`.  Expected '
                             '`Model`, `Proxy`, `DeferredRelation`, or "self"')
         self.rel_model = rel_model
-        self.rel_alias = None
         self._related_name = related_name
         self.deferred = isinstance(rel_model, (Proxy, DeferredRelation))
         self.on_delete = on_delete
@@ -1278,7 +1277,7 @@ class ForeignKeyField(IntegerField):
     def clone_base(self, **kwargs):
         return super(ForeignKeyField, self).clone_base(
             rel_model=self.rel_model,
-            related_name=self.related_name,
+            related_name=self.related_name if hasattr(self, 'related_name') else None,
             on_delete=self.on_delete,
             on_update=self.on_update,
             extra=self.extra,
@@ -1368,9 +1367,7 @@ class ForeignKeyField(IntegerField):
         return self.to_field.coerce(value)
         
     def as_(self, alias_name):
-        ret = self.clone()
-        ret.rel_alias = ModelAlias(self.rel_model, alias_name=alias_name)
-        return ret
+        return self.alias(alias_name)
 
     def db_value(self, value):
         if isinstance(value, self.rel_model):
@@ -2637,7 +2634,11 @@ class Query(Node):
         for i, fk in enumerate(foreign_keys):
             fk_path = foreign_keys[:i+1]
             if model_class == fk.model_class:
-                alias = fk.rel_alias or fk.rel_model.alias()
+                alias = fk.rel_model.alias(fk._alias) if fk._alias else fk.rel_model.alias()
+                if fk._alias:
+                  # if there is an alias on the FK peewee won't bind it's columns into a child object
+                  fk = fk.clone()
+                  fk._alias = None
                 already_joined_this_path = False
                 for join in query._joins[model_class]:
                     if same_path(join._path, fk_path):

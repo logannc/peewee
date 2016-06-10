@@ -148,6 +148,18 @@ class TestPlusQueries(ModelTestCase):
           self.assertEqual(ethernet_port.computer.memory.name, 'memory')
           self.assertEqual(ethernet_port.computer.processor.name, 'processor')
           
+    def test_fk_to_same_table_one_layer_in_where(self):
+        with self.assertQueryCount(1):
+          ethernet_port = EthernetPort.ALL \
+              .plus(EthernetPort.computer, Computer.hard_drive) \
+              .plus(EthernetPort.computer, Computer.memory.as_('memory_component')) \
+              .plus(EthernetPort.computer, Computer.processor) \
+              .where(Component.as_('memory_component').name=='memory') \
+              .get()
+          self.assertEqual(ethernet_port.computer.hard_drive.name, 'hard_drive')
+          self.assertEqual(ethernet_port.computer.memory.name, 'memory')
+          self.assertEqual(ethernet_port.computer.processor.name, 'processor')
+          
     def test_same_table_down(self):
         with self.assertQueryCount(1):
             category = Category.ALL.plus(Category.parent).where(Category.name=='category4').get()
