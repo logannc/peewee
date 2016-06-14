@@ -57,7 +57,10 @@ class TestQueryResultWrapper(ModelTestCase):
     def test_len(self):
         User.create_users(5)
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
+            # query one: a call to count()
+            # query two: exec the full query
+            # no query three: counting the length of the cached results
             query = User.select()
             self.assertEqual(len(query), 5)
 

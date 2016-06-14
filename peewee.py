@@ -3085,7 +3085,10 @@ class SelectQuery(Query):
         return res._result_cache[value]
 
     def __len__(self):
-        return len(self.execute())
+        if self._qr is None:
+            return self.count()
+        else:
+            return len(self._qr)
 
     if PY3:
         def __hash__(self):
