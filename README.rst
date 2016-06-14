@@ -330,15 +330,19 @@ Which allows you to reference it later in your conditional:
 
   .where(Person.as_('author').name=="Derek")
 
-Currently plus() only supports following foreign keys in their natural direction (FK from table A to table B), but I'm actively working on supporting the opposite direction, like:
+Herman's plus() also supports following foreign keys from one-to-many.  Like:
 
 .. code-block:: python
 
   Article.ALL.plus(Reply.article)
 
-Which internally would use prefetch() to populate the article with all of its replies.
+Which internally does a prefetch to populate the article with all of its replies.  There will be O(k) SQL statements executed, where `k` is the number of two-many relationships.  All of these queries will be grouped into one transaction to guarantee correctness.
 
-This semantics for plus() have been co-opted from the `DKO <https://github.com/keredson/DKO>`_ project, which I authored for my former employer.  (DKO calls it with(), but "with" is a reserved word in Python.)  DKO's with() syntax has been in broad production use since 2010 by hundreds of developers hitting some of the largest conventional relational databases that exist.  (Large like "auto-incremented ids had to be uint64 because uint32 wasn't enough". I worked on that change circa 2011. Fun times. :)
+*IMPORTANT:*
+
+    Remember that foreign keys represent edges in your object graph, and a call to `plus(*edges)` tells Herman to include that path from the object graph in your query.
+
+This semantics for plus() have been co-opted from the `DKO <https://github.com/keredson/DKO>`_ project, which I authored for my former employer.  DKO's version of this syntax has been in broad production use since 2010 by hundreds of developers, accessing some of the largest (billions of rows) conventional relational databases that exist.
 
 
 
