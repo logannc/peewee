@@ -46,6 +46,7 @@ class TestPlusQueries(ModelTestCase):
 
         user = User.create(username='username')
         user2 = User.create(username='username2')
+        user3 = User.create(username='username3')
         blog = Blog.create(user=user, title='title')
         comment = Comment.create(blog=blog, comment='comment')
         category1 = Category.create(name='category1')
@@ -54,6 +55,7 @@ class TestPlusQueries(ModelTestCase):
         category4 = Category.create(name='category4', parent=category3)
         comment_category = CommentCategory.create(comment=comment, category=category1)
         rel = Relationship.create(from_user=user, to_user=user2)
+        Relationship.create(from_user=user3, to_user=user)
         
         hard_drive = Component.create(name='hard_drive')
         memory = Component.create(name='memory')
@@ -133,7 +135,7 @@ class TestPlusQueries(ModelTestCase):
           rel = Relationship.ALL \
               .plus(Relationship.from_user) \
               .plus(Relationship.to_user) \
-              .get()
+              .order_by(Relationship.id).first()
           self.assertEqual(rel.from_user.username, 'username')
           self.assertEqual(rel.to_user.username, 'username2')
           
@@ -185,4 +187,55 @@ class TestPlusQueries(ModelTestCase):
             self.assertEqual(category.parent.parent.name, 'category2')
             self.assertEqual(category.parent.parent.parent.name, 'category1')
             
+    def test_one_to_many(self):
+        with self.assertQueryCount(2):
+            user = User.ALL.plus(Blog.user).where(User.username=='username').get()
+            self.assertEqual(user.username, 'username')
+            self.assertEqual(len(user.blog_set), 1)
+            self.assertEqual(user.blog_set[0].title, 'title')
+
+    def test_one_to_many_behind_one_to_many(self):
+        with self.assertQueryCount(3):
+            user = User.ALL.plus(Blog.user, Comment.blog).where(User.username=='username').get()
+            self.assertEqual(user.username, 'username')
+            self.assertEqual(len(user.blog_set), 1)
+            self.assertEqual(user.blog_set[0].title, 'title')
+            self.assertEqual(len(user.blog_set[0].comments), 1)
+            self.assertEqual(user.blog_set[0].comments[0].comment, 'comment')
+
+    def test_one_to_many_behind_fk(self):
+        # a blog with its user (ie: author) and prepopulates each author with all of their relationships
+        with self.assertQueryCount(2):
+            blog = Blog.ALL.plus(Blog.user, Relationship.from_user).get()
+            self.assertEqual(blog.user.username, 'username')
+            self.assertEqual(len(blog.user.relationships), 1)
+
+    def test_one_to_many_behind_fk_with_other_user(self):
+        # a blog with its user (ie: author) and prepopulates each author with all of 
+        # their relationships with the other user prepopulated
+        with self.assertQueryCount(2):
+            blog = Blog.ALL.plus(Blog.user, Relationship.from_user, Relationship.to_user).get()
+            self.assertEqual(blog.user.username, 'username')
+            self.assertEqual(len(blog.user.relationships), 1)
+            self.assertEqual(blog.user.relationships[0].to_user.username, 'username2')
+
+    def test_one_to_many_behind_fk_with_other_user2(self):
+        # a blog with its user (ie: author) and prepopulates each author with all of 
+        # their relationships with the other user prepopulated
+        with self.assertQueryCount(2):
+            blog = Blog.ALL.plus(Blog.user, Relationship.to_user, Relationship.from_user).get()
+            self.assertEqual(blog.user.username, 'username')
+            self.assertEqual(len(blog.user.related_to), 1)
+            self.assertEqual(blog.user.related_to[0].from_user.username, 'username3')
+
+    def test_one_to_many_behind_self_referenced_fk(self):
+        # this gets a list of blogs each with their user (ie: author)
+        # and prepopulates each author with all of their blogs
+        with self.assertQueryCount(2):
+            blog = Blog.ALL.plus(Blog.user, Blog.user).get()
+            self.assertEqual(blog.user.username, 'username')
+            self.assertEqual(len(blog.user.blog_set), 1)
+            self.assertEqual(blog.user.blog_set[0].title, 'title')
+
+
 

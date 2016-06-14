@@ -2557,6 +2557,7 @@ class Query(Node):
         self._query_ctx = model_class
         self._joins = defaultdict(list)  # Join graph as adjacency list like: {self.model_class: []}
         self._where = None
+        self._fetch_related = {}
 
     def __repr__(self):
         sql, params = self.sql()
@@ -2572,6 +2573,7 @@ class Query(Node):
             query._where = self._where.clone()
         query._joins = self._clone_joins()
         query._query_ctx = self._query_ctx
+        query._fetch_related = self._fetch_related.copy()
         return query
 
     def _clone_joins(self):
@@ -2625,6 +2627,8 @@ class Query(Node):
             self._query_ctx = dest
 
     def plus(self, *foreign_keys):
+        if len(foreign_keys)==0:
+            return self
         def same_path(p1, p2):
           if len(p1) != len(p2): return False
           return min([p1[i] is p2[i] for i in range(len(p1))])
@@ -2652,8 +2656,15 @@ class Query(Node):
                     join._path = fk_path
                     query._select += query._model_shorthand(alias.get_proxy_fields())
                 model_class = fk.rel_model
-            elif query._query_ctx == fk.rel_model:
-                raise Exception("to-many unsupported")
+            elif model_class == fk.rel_model:
+                to_many_q = query._fetch_related.get(fk_path)
+                if to_many_q is None:
+                    to_many_q = fk.model_class.ALL
+                to_many_q = to_many_q.plus(*foreign_keys[i+1:])
+                query._fetch_related[fk_path] = to_many_q
+                break
+            else:
+                raise ProgrammingError("count not find a connection between %s and %s.%s => %s" % (model_class._meta.name, fk.model_class._meta.name, fk.name, fk.rel_model._meta.name))
         query = query.switch(original_model_class)
         return query
 
@@ -3047,7 +3058,10 @@ class SelectQuery(Query):
             model_class = self.model_class
             query_meta = self.get_query_meta()
             ResultWrapper = self._get_result_wrapper()
-            self._qr = ResultWrapper(model_class, self._execute(), query_meta)
+            if ResultWrapper in (ModelQueryResultWrapper, NaiveQueryResultWrapper) and len(self._fetch_related)>0:
+                self._qr = PlusPrefetchResultWrapper(ResultWrapper, model_class, self, query_meta, self._fetch_related)
+            else:
+                self._qr = ResultWrapper(model_class, self._execute(), query_meta)
             self._dirty = False
             return self._qr
         else:
@@ -3076,6 +3090,32 @@ class SelectQuery(Query):
     if PY3:
         def __hash__(self):
             return id(self)
+            
+class PlusPrefetchResultWrapper(object):
+    def __init__(self, ResultWrapper, model_class, query, query_meta, fetch_related):
+        qr = ResultWrapper(model_class, query._execute(), query_meta)
+        self.items = list(qr)
+        for path, q in fetch_related.items():
+            pks = set()
+            for item in self.items:
+                pks.add(self.fetch_pk(item, path))
+            children_by_id = defaultdict(list)
+            for child in q.where(path[-1].in_(list(pks))):
+                children_by_id[child._data[path[-1].name]].append(child)
+            for item in self.items:
+                self.set_related(item, path, children_by_id)
+    def fetch_pk(self, item, path):
+        for fk in path[:-1]:
+            item = getattr(item, fk.name)
+        pk = getattr(item, item.__class__._meta.primary_key.name)
+        return pk
+    def set_related(self, item, path, children_by_id):
+        for fk in path[:-1]:
+            item = getattr(item, fk.name)
+        pk = getattr(item, item.__class__._meta.primary_key.name)
+        setattr(item, path[-1].related_name, children_by_id[pk])
+    def __iter__(self):
+        return self.items.__iter__()
 
 class CompoundSelect(SelectQuery):
     _node_type = 'compound_select_query'
