@@ -188,14 +188,14 @@ class TestPlusQueries(ModelTestCase):
             self.assertEqual(category.parent.parent.parent.name, 'category1')
             
     def test_one_to_many(self):
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(2, ignore_txn=True):
             user = User.ALL.plus(Blog.user).where(User.username=='username').get()
             self.assertEqual(user.username, 'username')
             self.assertEqual(len(user.blog_set), 1)
             self.assertEqual(user.blog_set[0].title, 'title')
 
     def test_one_to_many_behind_one_to_many(self):
-        with self.assertQueryCount(3):
+        with self.assertQueryCount(3, ignore_txn=True):
             user = User.ALL.plus(Blog.user, Comment.blog).where(User.username=='username').get()
             self.assertEqual(user.username, 'username')
             self.assertEqual(len(user.blog_set), 1)
@@ -205,7 +205,7 @@ class TestPlusQueries(ModelTestCase):
 
     def test_one_to_many_behind_fk(self):
         # a blog with its user (ie: author) and prepopulates each author with all of their relationships
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(2, ignore_txn=True):
             blog = Blog.ALL.plus(Blog.user, Relationship.from_user).get()
             self.assertEqual(blog.user.username, 'username')
             self.assertEqual(len(blog.user.relationships), 1)
@@ -213,7 +213,7 @@ class TestPlusQueries(ModelTestCase):
     def test_one_to_many_behind_fk_with_other_user(self):
         # a blog with its user (ie: author) and prepopulates each author with all of 
         # their relationships with the other user prepopulated
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(2, ignore_txn=True):
             blog = Blog.ALL.plus(Blog.user, Relationship.from_user, Relationship.to_user).get()
             self.assertEqual(blog.user.username, 'username')
             self.assertEqual(len(blog.user.relationships), 1)
@@ -222,7 +222,7 @@ class TestPlusQueries(ModelTestCase):
     def test_one_to_many_behind_fk_with_other_user2(self):
         # a blog with its user (ie: author) and prepopulates each author with all of 
         # their relationships with the other user prepopulated
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(2, ignore_txn=True):
             blog = Blog.ALL.plus(Blog.user, Relationship.to_user, Relationship.from_user).get()
             self.assertEqual(blog.user.username, 'username')
             self.assertEqual(len(blog.user.related_to), 1)
@@ -231,7 +231,7 @@ class TestPlusQueries(ModelTestCase):
     def test_one_to_many_behind_self_referenced_fk(self):
         # this gets a list of blogs each with their user (ie: author)
         # and prepopulates each author with all of their blogs
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(2, ignore_txn=True):
             blog = Blog.ALL.plus(Blog.user, Blog.user).get()
             self.assertEqual(blog.user.username, 'username')
             self.assertEqual(len(blog.user.blog_set), 1)

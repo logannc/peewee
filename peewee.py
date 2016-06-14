@@ -3093,17 +3093,17 @@ class SelectQuery(Query):
             
 class PlusPrefetchResultWrapper(object):
     def __init__(self, ResultWrapper, model_class, query, query_meta, fetch_related):
-        qr = ResultWrapper(model_class, query._execute(), query_meta)
-        self.items = list(qr)
-        for path, q in fetch_related.items():
-            pks = set()
-            for item in self.items:
-                pks.add(self.fetch_pk(item, path))
-            children_by_id = defaultdict(list)
-            for child in q.where(path[-1].in_(list(pks))):
-                children_by_id[child._data[path[-1].name]].append(child)
-            for item in self.items:
-                self.set_related(item, path, children_by_id)
+        with query.database.atomic():
+          self.items = list(ResultWrapper(model_class, query._execute(), query_meta))
+          for path, q in fetch_related.items():
+              pks = set()
+              for item in self.items:
+                  pks.add(self.fetch_pk(item, path))
+              children_by_id = defaultdict(list)
+              for child in q.where(path[-1].in_(list(pks))):
+                  children_by_id[child._data[path[-1].name]].append(child)
+              for item in self.items:
+                  self.set_related(item, path, children_by_id)
     def fetch_pk(self, item, path):
         for fk in path[:-1]:
             item = getattr(item, fk.name)
