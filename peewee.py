@@ -2626,48 +2626,6 @@ class Query(Node):
         if not isinstance(dest, SelectQuery):
             self._query_ctx = dest
 
-    def plus(self, *foreign_keys):
-        if len(foreign_keys)==0:
-            return self
-        def same_path(p1, p2):
-          if len(p1) != len(p2): return False
-          return min([p1[i] is p2[i] for i in range(len(p1))])
-        query = self.clone()
-        original_model_class = query.model_class
-        model_class = original_model_class
-        for i, fk in enumerate(foreign_keys):
-            fk_path = foreign_keys[:i+1]
-            if model_class == fk.model_class:
-                alias = fk.rel_model.alias(fk._alias) if fk._alias else fk.rel_model.alias()
-                if fk._alias:
-                  # if there is an alias on the FK peewee won't bind it's columns into a child object
-                  fk = fk.clone()
-                  fk._alias = None
-                already_joined_this_path = False
-                for join in query._joins[model_class]:
-                    if same_path(join._path, fk_path):
-                        already_joined_this_path = True
-                if already_joined_this_path:
-                    query = query.switch(join.dest)
-                else:
-                    tmp_ctx = query._query_ctx
-                    query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
-                    join = query._joins[tmp_ctx][-1]
-                    join._path = fk_path
-                    query._select += query._model_shorthand(alias.get_proxy_fields())
-                model_class = fk.rel_model
-            elif model_class == fk.rel_model:
-                to_many_q = query._fetch_related.get(fk_path)
-                if to_many_q is None:
-                    to_many_q = fk.model_class.ALL
-                to_many_q = to_many_q.plus(*foreign_keys[i+1:])
-                query._fetch_related[fk_path] = to_many_q
-                break
-            else:
-                raise ProgrammingError("count not find a connection between %s and %s.%s => %s" % (model_class._meta.name, fk.model_class._meta.name, fk.name, fk.rel_model._meta.name))
-        query = query.switch(original_model_class)
-        return query
-
     @returns_clone
     def switch(self, model_class=None):
         """Change or reset the query context."""
@@ -3024,6 +2982,48 @@ class SelectQuery(Query):
             return res._result_cache[0]
         except IndexError:
             pass
+
+    def plus(self, *foreign_keys):
+        if len(foreign_keys)==0:
+            return self
+        def same_path(p1, p2):
+          if len(p1) != len(p2): return False
+          return min([p1[i] is p2[i] for i in range(len(p1))])
+        query = self.clone()
+        original_model_class = query.model_class
+        model_class = original_model_class
+        for i, fk in enumerate(foreign_keys):
+            fk_path = foreign_keys[:i+1]
+            if model_class == fk.model_class:
+                alias = fk.rel_model.alias(fk._alias) if fk._alias else fk.rel_model.alias()
+                if fk._alias:
+                  # if there is an alias on the FK peewee won't bind it's columns into a child object
+                  fk = fk.clone()
+                  fk._alias = None
+                already_joined_this_path = False
+                for join in query._joins[model_class]:
+                    if same_path(join._path, fk_path):
+                        already_joined_this_path = True
+                if already_joined_this_path:
+                    query = query.switch(join.dest)
+                else:
+                    tmp_ctx = query._query_ctx
+                    query = query.join(alias, JOIN.LEFT_OUTER, on=fk)
+                    join = query._joins[tmp_ctx][-1]
+                    join._path = fk_path
+                    query._select += query._model_shorthand(alias.get_proxy_fields())
+                model_class = fk.rel_model
+            elif model_class == fk.rel_model:
+                to_many_q = query._fetch_related.get(fk_path)
+                if to_many_q is None:
+                    to_many_q = fk.model_class.ALL
+                to_many_q = to_many_q.plus(*foreign_keys[i+1:])
+                query._fetch_related[fk_path] = to_many_q
+                break
+            else:
+                raise ProgrammingError("count not find a connection between %s and %s.%s => %s" % (model_class._meta.name, fk.model_class._meta.name, fk.name, fk.rel_model._meta.name))
+        query = query.switch(original_model_class)
+        return query
 
     def sql(self):
         return self.compiler().generate_select(self)
