@@ -344,8 +344,8 @@ Which internally does a prefetch to populate the article with all of its replies
 
 This semantics for plus() have been co-opted from the `DKO <https://github.com/keredson/DKO>`_ project, which I authored for my former employer.  DKO's version of this syntax has been in broad production use since 2010 by hundreds of developers, accessing some of the largest (billions of rows) conventional relational databases that exist.
 
-Calling len() Should Do a Database Count
-----------------------------------------
+Calling len() Does a Database Count
+-----------------------------------
 
 If you call:
 
@@ -353,7 +353,7 @@ If you call:
 
   len(Article.select())
 
-In Peewee this will load a list of objects, permanently cache said list, and then call `len()` on that cache.
+Peewee this will load a list of all objects, permanently cache said list, and then call `len()` on that cache.
 
 In Herman this will call `count()` on the database and return the resulting integer.  It does not build the list of objects in python nor cache anything.  However, for backwards compatability, if something else has already populated the cached results of the query, it will call `len()` on that.
 
