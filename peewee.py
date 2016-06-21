@@ -3065,7 +3065,11 @@ class SelectQuery(Query):
             model_class = self.model_class
             query_meta = self.get_query_meta()
             ResultWrapper = self._get_result_wrapper()
-            if ResultWrapper in (ModelQueryResultWrapper, NaiveQueryResultWrapper) and len(self._fetch_related)>0:
+            if ResultWrapper.__name__ in (
+              'ModelQueryResultWrapper', 
+              '_ModelQueryResultWrapper', 
+              'NaiveQueryResultWrapper',
+            ) and len(self._fetch_related)>0:
                 self._qr = PlusPrefetchResultWrapper(ResultWrapper, model_class, self, query_meta, self._fetch_related)
             else:
                 self._qr = ResultWrapper(model_class, self._execute(), query_meta)
