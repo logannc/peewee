@@ -2202,6 +2202,11 @@ if _DictQueryResultWrapper is None:
 class ModelQueryResultWrapper(QueryResultWrapper):
     def initialize(self, description):
         self.column_map, model_set = self.generate_column_map()
+        self.models_we_can_know_dont_exist = set()
+        for key, constructor, attr, conv in self.column_map:
+            if conv is None: continue
+            if not conv.__self__.null:
+                self.models_we_can_know_dont_exist.add(key)
         self.join_list = self.generate_join_list(model_set)
 
     def generate_column_map(self):
@@ -2253,15 +2258,19 @@ class ModelQueryResultWrapper(QueryResultWrapper):
         collected = self.construct_instances(row)
         instances = self.follow_joins(collected)
         for i in instances:
-            i._prepare_instance()
+            if i is not None:
+                i._prepare_instance()
         return instances[0]
 
     def construct_instances(self, row, keys=None):
         collected_models = {}
+        instance_isnt_all_null = set()
         for i, (key, constructor, attr, conv) in enumerate(self.column_map):
             if keys is not None and key not in keys:
                 continue
             value = row[i]
+            if value is not None:
+                instance_isnt_all_null.add(key)
             if key not in collected_models:
                 collected_models[key] = constructor()
             instance = collected_models[key]
@@ -2270,7 +2279,9 @@ class ModelQueryResultWrapper(QueryResultWrapper):
             if conv is not None:
                 value = conv(value)
             setattr(instance, attr, value)
-
+        for key in self.models_we_can_know_dont_exist - instance_isnt_all_null:
+            if key in collected_models:
+                collected_models[key] = None
         return collected_models
 
     def follow_joins(self, collected):
@@ -2286,7 +2297,9 @@ class ModelQueryResultWrapper(QueryResultWrapper):
             mpk = metadata.primary_key is not None
             can_populate_joined_pk = (
                 mpk and
+                (inst is not None) and
                 (metadata.attr in inst._data) and
+                (joined_inst is not None) and
                 (getattr(joined_inst, metadata.primary_key.name) is None))
             if can_populate_joined_pk:
                 setattr(
@@ -2298,7 +2311,9 @@ class ModelQueryResultWrapper(QueryResultWrapper):
                 can_populate_joined_fk = (
                     mpk and
                     (metadata.foreign_key is not None) and
+                    (inst is not None) and
                     (getattr(inst, metadata.primary_key.name) is not None) and
+                    (joined_inst is not None) and
                     (joined_inst._data.get(metadata.foreign_key.name) is None))
                 if can_populate_joined_fk:
                     setattr(
@@ -2306,6 +2321,7 @@ class ModelQueryResultWrapper(QueryResultWrapper):
                         metadata.foreign_key.name,
                         inst)
 
+#            if inst is not None:
             setattr(inst, metadata.attr, joined_inst)
             prepared.append(joined_inst)
 
@@ -2398,6 +2414,7 @@ class AggregateQueryResultWrapper(ModelQueryResultWrapper):
             self._initialized = True
 
         def _get_pk(instance):
+            if instance is None: return None
             if instance._meta.composite_key:
                 return tuple([
                     instance._data[field_name]
@@ -2434,9 +2451,10 @@ class AggregateQueryResultWrapper(ModelQueryResultWrapper):
                 # Do not include any instances which are comprised solely of
                 # NULL values.
                 all_none = True
-                for value in instance._data.values():
-                    if value is not None:
-                        all_none = False
+                if instance is not None:
+                    for value in instance._data.values():
+                        if value is not None:
+                            all_none = False
                 if not all_none:
                     identity_map[model_or_alias][_get_pk(instance)] = instance
 
@@ -2455,6 +2473,7 @@ class AggregateQueryResultWrapper(ModelQueryResultWrapper):
 
                 if metadata.is_backref or metadata.is_self_join:
                     for instance in identity_map[current].values():
+                        if instance is None: continue
                         setattr(instance, attr, [])
 
                     if join.dest not in identity_map:
@@ -2478,6 +2497,7 @@ class AggregateQueryResultWrapper(ModelQueryResultWrapper):
 
                     for pk, instance in identity_map[current].items():
                         # XXX: if no FK exists, unable to join.
+                        if instance is None: continue
                         joined_inst = identity_map[join.dest][
                             instance._data[metadata.foreign_key.name]]
                         setattr(

@@ -744,7 +744,7 @@ class TestModelQueryResultWrapper(ModelTestCase):
             expected = (('b1', 'c1'), ('b2', 'c2'), ('b3', None))
             for i, (b_data, c_data) in enumerate(expected):
                 self.assertEqual(results[i].rel_b.data, b_data)
-                self.assertEqual(results[i].rel_b.field.data, c_data)
+                self.assertEqual(results[i].rel_b.field.data if results[i].rel_b.field else None, c_data)
 
     def test_backward_join(self):
         u1 = User.create(username='u1')
@@ -1091,7 +1091,7 @@ class TestPrefetch(BaseTestPrefetch):
             for user in query:
                 results.append((
                     user.username,
-                    user.blog.title))
+                    user.blog.title if user.blog else None))
 
             self.assertEqual(results, [
                 ('u1', 'b1'),
