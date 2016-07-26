@@ -358,6 +358,47 @@ Peewee this will load a list of all objects, permanently cache said list, and th
 In Herman this will call `count()` on the database and return the resulting integer.  It does not build the list of objects in python nor cache anything.  However, for backwards compatability, if something else has already populated the cached results of the query, it will call `len()` on that.
 
 
+A New  DeferredRelation Syntax
+------------------------------
+
+The semantics behind Peewee's [circular foreign key dependencies](http://docs.peewee-orm.com/en/latest/peewee/model.html#circular-foreign-key-dependencies) get kind of unwieldy when you have more than a few models (and they're spread over multiple files). This is because the DeferredRelation object has to be defined, used, then the other model defined in another file, then set_model has to be called on the original, and then you're left with the object reference dangling around that has no purpose. IE the example in the docs:
+
+```python
+# Create a reference object to stand in for our as-yet-undefined Tweet model.
+DeferredTweet = DeferredRelation()
+
+class User(Model):
+    username = CharField()
+    # Tweet has not been defined yet so use the deferred reference.
+    favorite_tweet = ForeignKeyField(DeferredTweet, null=True)
+
+class Tweet(Model):
+    message = TextField()
+    user = ForeignKeyField(User, related_name='tweets')
+
+# Now that Tweet is defined, we can initialize the reference.
+DeferredTweet.set_model(Tweet)
+```
+
+Ours happens all in the model definition with an optional parameter given to DeferredRelation. Like:
+
+
+```python
+class User(Model):
+    username = CharField()
+    # Tweet has not been defined yet so use the deferred reference.
+    favorite_tweet = ForeignKeyField(DeferredRelation('Tweet'), null=True)
+
+class Tweet(Model):
+    message = TextField()
+    user = ForeignKeyField(User, related_name='tweets')
+```
+
+This removes the need for the extra variable in the global namespace and the coordination of it over multiple files. And since the parameter is optional, it is fully backwards-compatible with the old syntax.
+
+Our patch for this has been incorporated upstream, so this is forwards-compatible too following Peewee's next release.
+
+
 
 
 
