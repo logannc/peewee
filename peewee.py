@@ -1598,6 +1598,8 @@ class QueryCompiler(object):
         lhs, lparams = self.parse_node(node.lhs, alias_map, conv)
         rhs, rparams = self.parse_node(node.rhs, alias_map, conv)
         template = '%s %s %s' if node.flat else '(%s %s %s)'
+        if node.op == OP.IN and node.rhs.__class__ in (list,set,tuple) and len(node.rhs)==0:
+          return template % ('0', self.get_op(OP.EQ), '1'), lparams
         sql = template % (lhs, self.get_op(node.op), rhs)
         return sql, lparams + rparams
 

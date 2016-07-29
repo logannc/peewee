@@ -131,6 +131,11 @@ class TestQueryingModels(ModelTestCase):
         users = User.select(fn.Count(fn.Distinct(User.username))).scalar()
         self.assertEqual(users, 6)
 
+    def test_empty_in(self):
+        for empty_collection in [list(), set(), tuple()]:
+            users = User.select().where(User.username << empty_collection)
+            self.assertEqual(users.count(), 0)
+
     def test_update(self):
         User.create_users(5)
         uq = User.update(username='u-edited').where(User.username << ['u1', 'u2', 'u3'])
