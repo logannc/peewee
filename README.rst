@@ -399,6 +399,28 @@ This removes the need for the extra variable in the global namespace and the coo
 Our patch for this has been incorporated upstream, so this is forwards-compatible too, following Peewee's next release.
 
 
+Passing an Empty List/Set/Tuple into IN Doesn't Gen Invalid SQL
+---------------------------------------------------------------
+
+If you try to do a IN operation on an empty list:
+
+.. code-block:: python
+
+  User.select().where(User.id << [])
+
+Peewee will generate the following SQL:
+
+.. code-block:: sql
+
+  SELECT "t1"."id", "t1"."username" FROM "user" AS t1 WHERE ("t1"."id" IN ())
+
+Which the database will reject as invalid, throwing an exception.  We instead generate a "false" statement:
+
+.. code-block:: sql
+
+  SELECT u1.id, u1.username FROM "user" AS u1 WHERE (0 = 1)
+
+So you don't have to manually test for empty lists every time you use a SQL IN.
 
 
 
