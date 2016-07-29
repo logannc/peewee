@@ -11,6 +11,20 @@ This is mostly for my company's internal use, but anyone else is free to use it.
   :target: https://travis-ci.org/keredson/peewee
 
 
+How To Install
+==============
+
+.. code-block:: bash
+
+  sudo pip install git+git://github.com/keredson/peewee.git
+
+Or to upgrade:
+
+.. code-block:: bash
+
+  sudo pip install git+git://github.com/keredson/peewee.git --upgrade
+
+
 Differences (Herman vs. Peewee)
 ===============================
 
