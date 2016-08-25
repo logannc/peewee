@@ -47,7 +47,7 @@ if ext_modules:
 
 setup(
     name='herman',
-    version=__import__('peewee').__version__,
+    version=__import__('peewee').__herman_version__,
     description='a little fork of peewee',
     long_description=readme,
     author='Derek Anderson',
