@@ -1,9 +1,7 @@
 
 Herman
 ======
-The ORM peewee is currently going through a major 3.0 rewrite and isn't accepting many (any?) new features for the 2.x line.
-
-Because of this, I made Herman as a light fork of peewee (2.8.1) implementing some syntactic sugar and minor tweaks I've liked from other ORMs.
+According to Charles, the Peewee ORM is currently going through a major 3.0 rewrite and isn't accepting many (any?) new features for the 2.x line.  Because of this, I made Herman as a light fork of Peewee (2.8.1) implementing some syntactic sugar and minor tweaks I've liked from other ORMs.
 
 This is mostly for my company's internal use, but anyone else is free to use it.  I'm maintaining API compatibility as a drop in replacement for peewee 2.x.
 
@@ -16,14 +14,16 @@ How To Install
 
 .. code-block:: bash
 
-  sudo pip install git+git://github.com/keredson/peewee.git
+  sudo pip uninstall peewee
+  sudo pip install herman
 
 Or to upgrade:
 
 .. code-block:: bash
 
-  sudo pip install git+git://github.com/keredson/peewee.git --upgrade
+  sudo pip install herman --upgrade
 
+*There is no `herman` package.*  Herman represents itself as peewee (with the same peewee `__version__`) as a drop-in replacement.  To check if you're running Peewee or Herman, check for `peewee.__herman_version__`.
 
 Differences (Herman vs. Peewee)
 ===============================
