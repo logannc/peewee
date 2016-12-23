@@ -5,6 +5,149 @@ releases, visit GitHub:
 
 https://github.com/coleifer/peewee/releases
 
+## 2.8.4
+
+This release contains bugfixes as well as a new playhouse extension module for
+working with [SQLite in multi-threaded / concurrent environments](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#sqliteq).
+The new module is called `playhouse.sqliteq` and it works by serializing
+queries using a dedicated worker thread (or greenlet). The performance is quite
+good, hopefully this proves useful to someone besides myself! You can learn
+more by reading the [sqliteq documentation](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#sqliteq).
+
+As a miscellaneous note, I did some major refactoring and cleanup in
+`ExtQueryResultsWrapper` and it's corollary in the `speedups` module. The code
+is much easier to read than before.
+
+### Bugs fixed
+
+* #1061 - @akrs patched a bug in `TimestampField` which affected the accuracy
+  of sub-second timestamps (for resolution > 1).
+* #1071, small python 3 fix.
+* #1072, allow `DeferredRelation` to be used multiple times if there are
+  multiple references to a given deferred model.
+* #1073, fixed regression in the speedups module that caused SQL functions to
+  always coerce return values, regardless of the `coerce` flag.
+* #1083, another Python 3 issue - this time regarding the use of `exc.message`.
+
+[View commits](https://github.com/coleifer/peewee/compare/2.8.3...2.8.4)
+
+## 2.8.3
+
+This release contains bugfixes and a small backwards-incompatible change to the
+way foreign key `ObjectIdDescriptor` is named (issue #1050).
+
+### Bugs fixed and general changes
+
+* #1028 - allow the `ensure_join` method to accept `on` and `join_type`
+  parameters. Thanks @paulbooth.
+* #1032 - fix bug related to coercing model instances to database parameters
+  when the model's primary key is a foreign key.
+* #1035 - fix bug introduced in 2.8.2, where I had added some logic to try and
+  restrict the base `Model` class from being treated as a "real" Model.
+* #1039 - update documentation to clarify that lists *or tuples* are acceptable
+  values when specifying SQLite `PRAGMA` statements.
+* #1041 - PyPy user was unable to install Peewee. (Who in their right mind
+  would *ever* use PyPy?!) Bug was fixed by removing the pre-generated C files
+  from the distribution.
+* #1043 - fix bug where the `speedups` C extension was not calling the correct
+  model initialization method, resulting in model instances returned as results
+  of a query having their `dirty` flag incorrectly set.
+* #1048 - similar to #1043, add logic to ensure that fields with default values
+  are considered dirty when instantiating the model.
+* #1049 - update URL to [APSW](https://rogerbinns.github.io/apsw).
+* Fixed unreported bug regarding `TimestampField` with zero values reporting
+  the incorrect datetime.
+
+### New stuff
+
+* [djpeewee](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#djpeewee) extension
+  module now works with Django 1.9.
+* [TimestampField](http://docs.peewee-orm.com/en/latest/peewee/api.html#TimestampField)
+  is now an officially documented field.
+* #1050 - use the `db_column` of a `ForeignKeyField` for the name of the
+  `ObjectIdDescriptor`, except when the `db_column` and field `name` are the
+  same, in which case the ID descriptor will be named `<field_name>_id`.
+
+[View commits](https://github.com/coleifer/peewee/compare/2.8.2...2.8.3)
+
+## 2.8.2
+
+This release contains mostly bug-fixes, clean-ups, and API enhancements.
+
+### Bugs fixed and general cleanups
+
+* #820 - fixed some bugs related to the Cython extension build process.
+* #858 - allow blanks and perform type conversion when using the `db_url`
+  extension
+* #922 - ensure that `peewee.OperationalError` is raised consistently when
+  using the `RetryOperationalError` mixin.
+* #929 - ensure that `pwiz` will import the appropriate extensions when
+  vendor-specific fields are used.
+* #930 - ensure that `pwiz`-generated models containing `UnknownField`
+  placeholders do not blow up when you instantiate them.
+* #932 - correctly limit the length of automatically-generated index names.
+* #933 - fixed bug where `BlobField` could not be used if it's parent model
+  pointed to an uninitialized database `Proxy`.
+* #935 - greater consistency with the conversion to Python data-types when
+  performing aggregations, annotations, or calling `scalar()`.
+* #939 - ensure the correct data-types are used when initializing a connection
+  pool.
+* #947 - fix bug where `Signal` subclasses were not returning rows affected on
+  save.
+* #951 - better warnings regarding C extension compilation, thanks @dhaase-de.
+* #968 - fix bug where table names starting with numbers generated invalid
+  table names when using `pwiz`.
+* #971 - fix bug where parameter was not being used. Thanks @jberkel.
+* #974 - fixed the way `SqliteExtDatabase` handles the automatic `rowid` (and
+    `docid`) columns. Thanks for alerting me to the issue and providing a
+    failing test case @jberkel.
+* #976 - fix obscure bug relating to cloning foreign key fields twice.
+* #981 - allow `set` instances to be used on the right-hand side of `IN` exprs.
+* #983 - fix behavior where the default `id` primary key was inherited
+  regardless. When users would inadvertently include it in their queries, it
+  would use the table alias of it's parent class.
+* #992 - add support for `db_column` in `djpeewee`
+* #995 - fix the behavior of `truncate_date` with Postgresql. Thanks @Zverik.
+* #1011 - correctly handle `bytes` wrapper used by `PasswordField` to `bytes`.
+* #1012 - when selecting and joining on multiple models, do not create model
+  instances when the foreign key is NULL.
+* #1017 - do not coerce the return value of function calls to `COUNT` or `SUM`,
+  since the python driver will already give us the right Python value.
+* #1018 - use global state to resolve `DeferredRelations`, allowing for a nicer
+  API. Thanks @brenguyen711.
+* #1022 - attempt to avoid creating invalid Python when using `pwiz` with MySQL
+  database columns containing spaces. Yes, fucking spaces.
+* #1024 - fix bug in SQLite migrator which had a naive approach to fixing
+  indexes.
+* #1025 - explicitly check for `None` when determining if the database has been
+  set on `ModelOptions`. Thanks @joeyespo.
+
+### New stuff
+
+* Added `TimestampField` for storing datetimes using integers. Greater than
+  second delay is possible through exponentiation.
+* Added `Database.drop_index()` method.
+* Added a `max_depth` parameter to the `model_to_dict` function in
+  the `playhouse.shortcuts` extension module.
+* `SelectQuery.first()` function accepts a parameter `n` which
+  applies a limit to the query and returns the first row. Previously the limit
+  was not applied out of consideration for subsequent iterations, but I believe
+  usage has shown that a limit is more desirable than reserving the option to
+  iterate without a second query. The old behavior is preserved in the new
+  `SelectQuery.peek()` method.
+* `group_by()`, `order_by()`, `window()` now accept a keyward argument
+  `extend`, which, when set to `True`, will append to the existing values
+  rather than overwriting them.
+* Query results support negative indexing.
+* C sources are included now as part of the package. I *think* they should be
+  able to compile for python 2 or 3, on linux or windows...but not positive.
+* #895 - added the ability to query using the `<foreign_key>_id` attribute.
+* #948 - added documentation about SQLite limits and how they affect
+* #1009 - allow `DATABASE_URL` as a recognized parameter to the Flask config.
+  `insert_many`.
+
+[View commits](https://github.com/coleifer/peewee/compare/2.8.1...2.8.2)
+
 ## 2.8.1
 
 This release is long overdue so apologies if you've been waiting on it and
@@ -495,7 +638,7 @@ As of 2.4.0, most of the introspection logic was moved out of the ``pwiz`` modul
 ### New features
 
 * Created a new [reflection](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#reflection) extension for introspecting databases. The *reflection* module additionally can generate actual peewee Model classes dynamically.
-* Created a [dataset](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#dataset) library (based on the [SQLAlchemy project](http://dataset.readthedocs.org/) of the same name). For more info check out the blog post [announcing playhouse.dataset](http://charlesleifer.com/blog/saturday-morning-hacks-dataset-for-peewee/).
+* Created a [dataset](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#dataset) library (based on the [SQLAlchemy project](https://dataset.readthedocs.io/) of the same name). For more info check out the blog post [announcing playhouse.dataset](http://charlesleifer.com/blog/saturday-morning-hacks-dataset-for-peewee/).
 * Added a [db_url](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#database-url) module which creates `Database` objects from a connection string.
 * Added [csv dump](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#dumping-csv) functionality to the [CSV utils](http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#csv-utils) extension.
 * Added an [atomic](http://docs.peewee-orm.com/en/latest/peewee/transactions.html#nesting-transactions) context manager to support nested transactions.

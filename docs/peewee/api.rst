@@ -158,6 +158,22 @@ Models
                     yield {'username': username}
             User.insert_many(get_usernames()).execute()
 
+        .. warning::
+            If you are using SQLite, your SQLite library must be version 3.7.11
+            or newer to take advantage of bulk inserts.
+
+        .. note::
+            SQLite has a default limit of 999 bound variables per statement.
+            This limit can be modified at compile-time or at run-time, **but**
+            if modifying at run-time, you can only specify a *lower* value than
+            the default limit.
+
+            For more information, check out the following SQLite documents:
+
+            * `Max variable number limit <https://www.sqlite.org/limits.html#max_variable_number>`_
+            * `Changing run-time limits <https://www.sqlite.org/c3ref/limit.html>`_
+            * `SQLite compile-time flags <https://www.sqlite.org/compile.html>`_
+
     .. py:classmethod:: insert_from(fields, query)
 
         Insert rows into the table using a query as the data source. This API should
@@ -689,6 +705,20 @@ Fields
 
         Same as :py:attr:`~TimeField.hour`, except extract second..
 
+.. py:class:: TimestampField
+
+    Stores: python ``datetime.datetime`` instances (stored as integers)
+
+    Accepts a special parameter ``resolution``, which is a power-of-10 up to
+    ``10^6``. This allows sub-second precision while still using an
+    :py:class:`IntegerField` for storage. Default is ``1`` (second precision).
+
+    Also accepts a boolean parameter ``utc``, used to indicate whether the
+    timestamps should be UTC. Default is ``False``.
+
+    Finally, the field ``default`` is the current timestamp. If you do not want
+    this behavior, then explicitly pass in ``default=None``.
+
 .. py:class:: BooleanField
 
     Stores: ``True`` / ``False``
@@ -872,9 +902,12 @@ Query Types
 
         .. warning: This method should be implemented by subclasses
 
-    .. py:method:: scalar([as_tuple=False])
+    .. py:method:: scalar([as_tuple=False[, convert=False]])
 
         :param bool as_tuple: return the row as a tuple or a single value
+        :param bool convert: attempt to coerce the selected value to the
+          appropriate data-type based on it's associated Field type (assuming
+          one exists).
         :rtype: the resulting row, either as a single value or tuple
 
         Provide a way to retrieve single values from select queries, for instance
@@ -884,6 +917,19 @@ Query Types
 
             >>> PageView.select(fn.Count(fn.Distinct(PageView.url))).scalar()
             100 # <-- there are 100 distinct URLs in the pageview table
+
+        This example illustrates the use of the `convert` argument. When using
+        a SQLite database, datetimes are stored as strings. To select the max
+        datetime, and have it *returned* as a datetime, we will specify
+        ``convert=True``.
+
+        .. code-block:: pycon
+
+            >>> PageView.select(fn.MAX(PageView.timestamp)).scalar()
+            '2016-04-20 13:37:00.1234'
+
+            >>> PageView.select(fn.MAX(PageView.timestamp)).scalar(convert=True)
+            datetime.datetime(2016, 4, 20, 13, 37, 0, 1234)
 
 
 .. py:class:: SelectQuery(model_class, *selection)
@@ -985,9 +1031,13 @@ Query Types
                 .group_by(User)
                 .having(fn.Count(Tweet.id) > 100))
 
-    .. py:method:: order_by(*clauses)
+    .. py:method:: order_by(*clauses[, extend=False])
 
-        :param clauses: a list of fields, calls to ``field.[asc|desc]()`` or one or more expressions
+        :param clauses: a list of fields, calls to ``field.[asc|desc]()`` or
+          one or more expressions. If called without any arguments, any
+          pre-existing ``ORDER BY`` clause will be removed.
+        :param extend: When called with ``extend=True``, Peewee will append any
+          to the pre-existing ``ORDER BY`` rather than overwriting it.
         :rtype: :py:class:`SelectQuery`
 
         Example of ordering users by username:
@@ -1030,6 +1080,17 @@ Query Types
                 .join(Tweet)
                 .group_by(User)
                 .order_by(tweet_ct.desc(), User.username))
+
+        Example of removing a pre-existing ``ORDER BY`` clause:
+
+        .. code-block:: python
+
+            # Query will be ordered by username.
+            users = User.select().order_by(User.username)
+
+            # Query will be returned in whatever order database chooses.
+            unordered_users = users.order_by()
+
 
     .. py:method:: window(*windows)
 
@@ -1312,12 +1373,34 @@ Query Types
 
             user = User.get(User.active == True, User.username == username)
 
-    .. py:method:: first()
+    .. py:method:: first([n=1])
 
-        :rtype: :py:class:`Model` instance or ``None`` if no results
+        :param int n: Return the first *n* query results after applying a limit
+            of ``n`` records.
+        :rtype: :py:class:`Model` instance, list or ``None`` if no results
 
-        Fetch the first row from a query. The result will be cached in case the entire
-        query result-set should be iterated later.
+        Fetch the first *n* rows from a query. Behind-the-scenes, a ``LIMIT n``
+        is applied. The results of the query are then cached on the query
+        result wrapper so subsequent calls to :py:meth:`~SelectQuery.first`
+        will not cause multiple queries.
+
+        If only one row is requested (default behavior), then the return-type
+        will be either a model instance or ``None``.
+
+        If multiple rows are requested, the return type will either be a list
+        of one to n model instances, or ``None`` if no results are found.
+
+    .. py:method:: peek([n=1])
+
+        :param int n: Return the first *n* query results.
+        :rtype: :py:class:`Model` instance, list or ``None`` if no results
+
+        Fetch the first *n* rows from a query. No ``LIMIT`` is applied to the
+        query, so the :py:meth:`~SelectQuery.peek` has slightly different
+        semantics from :py:meth:`~SelectQuery.first`, which ensures no more
+        than *n* rows are requested. The ``peek`` method, on the other hand,
+        retains the ability to fetch the entire result set withouth issuing
+        additional queries.
 
     .. py:method:: execute()
 
@@ -1341,7 +1424,10 @@ Query Types
 
         Return the number of items in the result set of this query. If all you need is the count of items and do not intend to do anything with the results, call :py:meth:`~SelectQuery.count`.
 
-        .. warning:: The ``SELECT`` query will be executed and the result set will be loaded.
+        .. warning::
+            The ``SELECT`` query will be executed and the result set will be loaded.
+            If you want to obtain the number of results without also loading
+            the query, use :py:meth:`~SelectQuery.count`.
 
     .. py:method:: __getitem__(value)
 
@@ -2766,6 +2852,13 @@ Misc
     .. py:method:: concat(rhs)
 
         Concatenate the current node with the provided ``rhs``.
+
+        .. warning::
+            In order for this method to work with MySQL, the MySQL session must
+            be set to use ``PIPES_AS_CONCAT``.
+
+            To reliably concatenate strings with MySQL, use
+            ``fn.CONCAT(s1, s2...)`` instead.
 
     .. py:method:: is_null([is_null=True])
 

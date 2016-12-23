@@ -179,7 +179,11 @@ PRAGMA statements
 
 .. versionadded:: 2.6.4
 
-SQLite allows run-time configuration of a number of parameters through ``PRAGMA`` statements (`documentation <https://www.sqlite.org/pragma.html>`_). These statements are typically run against a new database connection. To run one or more ``PRAGMA`` statements against new connections, you can specify them as a list of 2-tuples containing the pragma name and value:
+SQLite allows run-time configuration of a number of parameters through
+``PRAGMA`` statements (`documentation <https://www.sqlite.org/pragma.html>`_).
+These statements are typically run against a new database connection. To run
+one or more ``PRAGMA`` statements against new connections, you can specify them
+as a list or tuple of 2-tuples containing the pragma name and value:
 
 .. code-block:: python
 
@@ -702,7 +706,7 @@ Thanks to GitHub user *@tuukkamustonen* for submitting this code.
 Falcon
 ^^^^^^
 
-The connection handling code can be placed in a `middleware component <https://falcon.readthedocs.org/en/stable/api/middleware.html>`_.
+The connection handling code can be placed in a `middleware component <https://falcon.readthedocs.io/en/stable/api/middleware.html>`_.
 
 .. code-block:: python
 
@@ -752,6 +756,23 @@ In your application `main()` make sure `MyRequest` is used as `request_factory`:
     def main(global_settings, **settings):
         config = Configurator(settings=settings, ...)
         config.set_request_factory(MyRequest)
+
+CherryPy
+^^^^^^^^
+
+See `Publish/Subscribe pattern <http://docs.cherrypy.org/en/latest/extend.html#publish-subscribe-pattern>`_.
+
+.. code-block:: python
+
+    def _db_connect():
+        db.connect()
+     
+    def _db_close():
+        if not db.is_closed():
+            db.close()
+      
+    cherrypy.engine.subscribe('before_request', _db_connect)
+    cherrypy.engine.subscribe('after_request', _db_close)
 
 Other frameworks
 ^^^^^^^^^^^^^^^^
