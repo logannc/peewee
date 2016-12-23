@@ -113,6 +113,7 @@ MODELS = [
     TestingID,
     ArrayModel,
     FTSModel,
+    NormalModel,
 ]
 
 class BasePostgresqlExtTestCase(ModelTestCase):
@@ -1020,3 +1021,7 @@ class TestIndexedField(PeeweeTestCase):
             'ON testindexmodel '
             'USING MAGIC (fake_index_with_type)'))
 
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main(argv=sys.argv)

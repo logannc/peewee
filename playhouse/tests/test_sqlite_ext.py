@@ -739,12 +739,16 @@ class TestUserDefinedCallbacks(ModelTestCase):
         def test_locked_dbr(isolation_level):
             with ext_db.granular_transaction(isolation_level):
                 Post.create(message='p2')
-                conn2 = ext_db._connect(ext_db.database, **ext_db.connect_kwargs)
-                res = conn2.execute('select message from post')
+                other_db = database_initializer.get_database(
+                    'sqlite',
+                    db_class=SqliteExtDatabase,
+                    timeout=0.1,
+                    use_speedups=False)
+                res = other_db.execute_sql('select message from post')
                 return res.fetchall()
 
         # no read-only stuff with exclusive locks
-        self.assertRaises(sqlite3.OperationalError, test_locked_dbr, 'exclusive')
+        self.assertRaises(OperationalError, test_locked_dbr, 'exclusive')
 
         # ok to do readonly w/immediate and deferred (p2 is saved twice)
         self.assertEqual(test_locked_dbr('immediate'), [])
@@ -778,7 +782,10 @@ class TestRowIDField(ModelTestCase):
     requires = [RowIDModel]
 
     def test_model_meta(self):
-        self.assertEqual(RowIDModel._meta.sorted_field_names, ['data'])
+        self.assertEqual(RowIDModel._meta.sorted_field_names,
+                         ['rowid', 'data'])
+        self.assertEqual([f.name for f in RowIDModel._meta.declared_fields],
+                         ['data'])
         self.assertEqual(RowIDModel._meta.primary_key.name, 'rowid')
         self.assertTrue(RowIDModel._meta.auto_increment)
 
@@ -806,6 +813,17 @@ class TestRowIDField(ModelTestCase):
         self.assertEqual(r_db2.rowid, 2)
         self.assertEqual(r_db2.data, 20)
 
+    def test_insert_with_rowid(self):
+        RowIDModel.insert({RowIDModel.rowid: 5, 'data': 1}).execute()
+        self.assertEqual(5, RowIDModel.select(RowIDModel.rowid).first().rowid)
+
+    def test_insert_many_with_rowid_without_field_validation(self):
+        RowIDModel.insert_many([{RowIDModel.rowid: 5, 'data': 1}], validate_fields=False).execute()
+        self.assertEqual(5, RowIDModel.select(RowIDModel.rowid).first().rowid)
+
+    def test_insert_many_with_rowid_with_field_validation(self):
+        RowIDModel.insert_many([{RowIDModel.rowid: 5, 'data': 1}], validate_fields=True).execute()
+        self.assertEqual(5, RowIDModel.select(RowIDModel.rowid).first().rowid)
 
 class TestTransitiveClosure(PeeweeTestCase):
     def test_model_factory(self):
@@ -878,7 +896,7 @@ class TestFTS5Extension(ModelTestCase):
         self.assertEqual(create_sql[0], (
             'CREATE VIRTUAL TABLE test1 USING fts5 ('
             'f1 , f2  UNINDEXED, f3 , '
-            'content=post, content_rowid=id, '
+            'content=post, content_rowid="id", '
             'prefix=\'2,3\', tokenize="porter unicode61")'))
 
     def assertResults(self, query, expected, scores=False, alias='score'):
@@ -893,16 +911,16 @@ class TestFTS5Extension(ModelTestCase):
     def test_search(self):
         query = FTS5Test.search('bb')
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY rank'),
             ['bb']))
         self.assertResults(query, ['nug aa dd', 'foo aa bb', 'bar bb cc'])
 
         query = FTS5Test.search('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc, rank AS score '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))
         self.assertResults(query, [
@@ -919,16 +937,16 @@ class TestFTS5Extension(ModelTestCase):
     def test_search_bm25(self):
         query = FTS5Test.search_bm25('bb')
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY rank'),
             ['bb']))
         self.assertResults(query, ['nug aa dd', 'foo aa bb', 'bar bb cc'])
 
         query = FTS5Test.search_bm25('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc, rank AS score '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))
         self.assertResults(query, [
@@ -939,17 +957,17 @@ class TestFTS5Extension(ModelTestCase):
     def test_search_bm25_scores(self):
         query = FTS5Test.search_bm25('bb', {'title': 5.0})
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY bm25(fts5test, ?, ?, ?)'),
             ['bb', 5.0, 1.0, 1.0]))
         self.assertResults(query, ['bar bb cc', 'foo aa bb', 'nug aa dd'])
 
         query = FTS5Test.search_bm25('bb', {'title': 5.0}, True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc, '
+            ('SELECT f1.title, f1."data", f1.misc, '
              'bm25(fts5test, ?, ?, ?) AS score '
-             'FROM fts5test AS t1 '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             [5.0, 1.0, 1.0, 'bb']))
         self.assertResults(query, [
@@ -961,8 +979,8 @@ class TestFTS5Extension(ModelTestCase):
         FTS5Test.set_rank('bm25(10.0, 1.0)')
         query = FTS5Test.search('bb', with_score=True)
         self.assertEqual(query.sql(), (
-            ('SELECT t1.title, t1."data", t1.misc, rank AS score '
-             'FROM fts5test AS t1 '
+            ('SELECT f1.title, f1."data", f1.misc, rank AS score '
+             'FROM fts5test AS f1 '
              'WHERE (fts5test MATCH ?) ORDER BY score'),
             ['bb']))
         self.assertResults(query, [
@@ -972,8 +990,9 @@ class TestFTS5Extension(ModelTestCase):
 
     def test_vocab_model(self):
         Vocab = FTS5Test.VocabModel()
+        if Vocab.table_exists():
+            Vocab.drop_table()
         Vocab.create_table()
-
         query = Vocab.select().where(Vocab.term == 'aa')
         self.assertEqual(
             query.dicts()[:],
@@ -1035,6 +1054,7 @@ class TestTransitiveClosureIntegration(PeeweeTestCase):
     def tearDown(self):
         super(TestTransitiveClosureIntegration, self).tearDown()
         ext_db.unload_extension(CLOSURE_EXTENSION.rstrip('.so'))
+        ext_db.close()
 
     def initialize_models(self):
         class Category(BaseExtModel):

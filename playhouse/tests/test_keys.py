@@ -1,8 +1,12 @@
+from peewee import DeferredRelation
+from peewee import Model
+from peewee import SqliteDatabase
 from playhouse.tests.base import compiler
 from playhouse.tests.base import database_initializer
 from playhouse.tests.base import ModelTestCase
 from playhouse.tests.base import PeeweeTestCase
 from playhouse.tests.base import skip_if
+from playhouse.tests.base import skip_test_if
 from playhouse.tests.base import test_db
 from playhouse.tests.models import *
 
@@ -349,10 +353,22 @@ class TestDeferredForeignKey(ModelTestCase):
         self.assertEqual(Language._meta.fields['selected_snippet'].rel_model,
                          Snippet)
 
-    def test_field_definitions2(self):
-        self.assertEqual(Snippet2._meta.fields['language'].rel_model, Language2)
-        self.assertEqual(Language2._meta.fields['selected_snippet'].rel_model,
-                         Snippet2)
+    def test_deferred_relation_resolution(self):
+        orig = len(DeferredRelation._unresolved)
+
+        class CircularRef1(Model):
+            circ_ref2 = ForeignKeyField(
+                DeferredRelation('circularref2'),
+                null=True)
+
+        self.assertEqual(len(DeferredRelation._unresolved), orig + 1)
+
+        class CircularRef2(Model):
+            circ_ref1 = ForeignKeyField(CircularRef1, null=True)
+
+        self.assertEqual(CircularRef1.circ_ref2.rel_model, CircularRef2)
+        self.assertEqual(CircularRef2.circ_ref1.rel_model, CircularRef1)
+        self.assertEqual(len(DeferredRelation._unresolved), orig)
 
     def test_create_table_query(self):
         query, params = compiler.create_table(Snippet)
@@ -391,6 +407,29 @@ class TestDeferredForeignKey(ModelTestCase):
         self.assertEqual(
             Language.get(Language.id == javascript.id).selected_snippet, None)
 
+    def test_multiple_refs(self):
+        person_ref = DeferredRelation()
+        class Relationship(TestModel):
+            person_from = ForeignKeyField(person_ref, related_name='f1')
+            person_to = ForeignKeyField(person_ref, related_name='f2')
+        class SomethingElse(TestModel):
+            person = ForeignKeyField(person_ref)
+
+        class Person(TestModel):
+            name = CharField()
+        person_ref.set_model(Person)
+
+        p1 = Person(id=1, name='p1')
+        p2 = Person(id=2, name='p2')
+        p3 = Person(id=3, name='p3')
+        r = Relationship(person_from=p1, person_to=p2)
+        s = SomethingElse(person=p3)
+
+        self.assertEqual(r.person_from.name, 'p1')
+        self.assertEqual(r.person_to.name, 'p2')
+        self.assertEqual(s.person.name, 'p3')
+
+
 
 class TestSQLiteDeferredForeignKey(PeeweeTestCase):
     def test_doc_example(self):
@@ -417,10 +456,23 @@ class TestSQLiteDeferredForeignKey(PeeweeTestCase):
             lambda: db.create_foreign_key(User, User.favorite_tweet))
 
 
-
-@skip_if(lambda: not test_db.foreign_keys)
 class TestForeignKeyConstraints(ModelTestCase):
     requires = [User, Blog]
+
+    def setUp(self):
+        self.set_foreign_key_pragma(True)
+        super(TestForeignKeyConstraints, self).setUp()
+
+    def tearDown(self):
+        self.set_foreign_key_pragma(False)
+        super(TestForeignKeyConstraints, self).tearDown()
+
+    def set_foreign_key_pragma(self, is_enabled):
+        if not isinstance(test_db, SqliteDatabase):
+            return
+
+        state = 'on' if is_enabled else 'off'
+        test_db.execute_sql('PRAGMA foreign_keys = %s' % state)
 
     def test_constraint_exists(self):
         # IntegrityError is raised when we specify a non-existent user_id.
@@ -432,6 +484,7 @@ class TestForeignKeyConstraints(ModelTestCase):
 
         self.assertRaises(IntegrityError, will_fail)
 
+    @skip_test_if(lambda: isinstance(test_db, SqliteDatabase))
     def test_constraint_creation(self):
         class FKC_a(TestModel):
             name = CharField()

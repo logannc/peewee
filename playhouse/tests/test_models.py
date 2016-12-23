@@ -31,6 +31,20 @@ class GCModel(Model):
             (('key', 'value'), True),
         )
 
+def incrementer():
+    d = {'value': 0}
+    def increment():
+        d['value'] += 1
+        return d['value']
+    return increment
+
+class DefaultsModel(Model):
+    field = IntegerField(default=incrementer())
+    control = IntegerField(default=1)
+
+    class Meta:
+        database = in_memory_db
+
 
 class TestQueryingModels(ModelTestCase):
     requires = [User, Blog]
@@ -136,6 +150,13 @@ class TestQueryingModels(ModelTestCase):
             users = User.select().where(User.username << empty_collection)
             self.assertEqual(users.count(), 0)
 
+    def test_noop_query(self):
+        query = User.noop()
+        with self.assertQueryCount(1) as qc:
+            result = [row for row in query]
+
+        self.assertEqual(result, [])
+
     def test_update(self):
         User.create_users(5)
         uq = User.update(username='u-edited').where(User.username << ['u1', 'u2', 'u3'])
@@ -240,6 +261,12 @@ class TestQueryingModels(ModelTestCase):
             self.assertTrue(iq.execute())
 
         self.assertEqual(User.select().count(), 4)
+
+    def test_insert_many_validates_fields_by_default(self):
+        self.assertTrue(User.insert_many([])._validate_fields)
+
+    def test_insert_many_without_field_validation(self):
+        self.assertFalse(User.insert_many([], validate_fields=False)._validate_fields)
 
     def test_delete(self):
         User.create_users(5)
@@ -496,6 +523,55 @@ class TestModelAPIs(ModelTestCase):
                 [cat.parent_id for cat in query],
                 [None, None, p1.id, p2.id])
 
+    def test_fk_object_id(self):
+        u = User.create(username='u')
+        b = Blog.create(user_id=u.id, title='b1')
+        self.assertEqual(b._data['user'], u.id)
+        self.assertFalse('user' in b._obj_cache)
+
+        with self.assertQueryCount(1):
+            u_db = b.user
+            self.assertEqual(u_db.id, u.id)
+
+        b_db = Blog.get(Blog.pk == b.pk)
+        with self.assertQueryCount(0):
+            self.assertEqual(b_db.user_id, u.id)
+
+        u2 = User.create(username='u2')
+        Blog.create(user=u, title='b1x')
+        Blog.create(user=u2, title='b2')
+
+        q = Blog.select().where(Blog.user_id == u2.id)
+        self.assertEqual(q.count(), 1)
+        self.assertEqual(q.get().title, 'b2')
+
+        q = Blog.select(Blog.pk, Blog.user_id).where(Blog.user_id == u.id)
+        self.assertEqual(q.count(), 2)
+        result = q.order_by(Blog.pk).first()
+        self.assertEqual(result.user_id, u.id)
+        with self.assertQueryCount(1):
+            self.assertEqual(result.user.id, u.id)
+
+    def test_object_id_descriptor_naming(self):
+        class Person(Model):
+            pass
+
+        class Foo(Model):
+            me = ForeignKeyField(Person, db_column='me', related_name='foo1')
+            another = ForeignKeyField(Person, db_column='_whatever_',
+                                      related_name='foo2')
+            another2 = ForeignKeyField(Person, db_column='person_id',
+                                       related_name='foo3')
+            plain = ForeignKeyField(Person, related_name='foo4')
+
+        self.assertTrue(Foo.me is Foo.me_id)
+        self.assertTrue(Foo.another is Foo._whatever_)
+        self.assertTrue(Foo.another2 is Foo.person_id)
+        self.assertTrue(Foo.plain is Foo.plain_id)
+
+        self.assertRaises(AttributeError, lambda: Foo.another_id)
+        self.assertRaises(AttributeError, lambda: Foo.another2_id)
+
     def test_category_select_related_alias(self):
         g1 = Category.create(name='g1')
         g2 = Category.create(name='g2')
@@ -648,7 +724,7 @@ class TestModelAPIs(ModelTestCase):
                 u = User.create(username='u1')
                 b = Blog.create(title='b1', user=u)
 
-            # The default value for the blog title will be saved as well.
+            # The default value for the blog content will be saved as well.
             self.assertEqual(
                 [params for _, params in query_logger.queries],
                 [['u1'], [u.id, 'b1', '']])
@@ -850,46 +926,63 @@ class TestModelAPIs(ModelTestCase):
         self.assertEqual(nm_get.data, nm.data)
         self.assertEqual(NonIntModel.select().count(), 1)
 
-    def test_first(self):
+    def test_herman_first(self):
         users = User.create_users(5)
-
         with self.assertQueryCount(1):
             sq = User.select().order_by(User.username)
             first = sq.first()
             self.assertEqual(first.username, 'u1')
-
         # call it with an empty result
         sq = User.select().where(User.username == 'not-here')
         self.assertEqual(sq.first(), None)
 
     def test_peek(self):
-        users = User.create_users(5)
+        users = User.create_users(3)
 
         with self.assertQueryCount(1):
             sq = User.select().order_by(User.username)
-            qr = sq.execute()
 
             # call it once
-            first = sq.peek()
-            self.assertEqual(first.username, 'u1')
+            u1 = sq.peek()
+            self.assertEqual(u1.username, 'u1')
 
             # check the result cache
-            self.assertEqual(len(qr._result_cache), 1)
+            self.assertEqual(len(sq._qr._result_cache), 1)
 
             # call it again and we get the same result, but not an
             # extra query
             self.assertEqual(sq.peek().username, 'u1')
 
         with self.assertQueryCount(0):
+            # no limit is applied.
             usernames = [u.username for u in sq]
-            self.assertEqual(usernames, ['u1', 'u2', 'u3', 'u4', 'u5'])
+            self.assertEqual(usernames, ['u1', 'u2', 'u3'])
 
-        with self.assertQueryCount(0):
-            # call after iterating
-            self.assertEqual(sq.peek().username, 'u1')
+    def test_first(self):
+        users = User.create_users(3)
 
+        with self.assertQueryCount(2):
+            sq = User.select().order_by(User.username)
+
+            # call it once
+            first = sq.first()
+            self.assertEqual(first.username, 'u1')
+
+            # call it again and we get the same result, with an
+            # second query
+            self.assertEqual(sq.first().username, 'u1')
+
+        with self.assertQueryCount(1):
+            # note that NO limit has been applied to the original query. (change from coleifer/peewee)
+            # all three users should be returned
             usernames = [u.username for u in sq]
-            self.assertEqual(usernames, ['u1', 'u2', 'u3', 'u4', 'u5'])
+            self.assertEqual(usernames, ['u1','u2','u3'])
+
+        with self.assertQueryCount(1):
+            # call first() after iterating
+            self.assertEqual(sq.first().username, 'u1')
+            usernames = [u.username for u in sq]
+            self.assertEqual(usernames, ['u1','u2','u3'])
 
         # call it with an empty result
         sq = User.select().where(User.username == 'not-here')
@@ -1718,6 +1811,36 @@ class TestModelInheritance(ModelTestCase):
         self.assertEqual(b2_from_db.user, u)
         self.assertEqual(b2_from_db.extra_field, 'foo')
 
+    def test_inheritance_primary_keys(self):
+        self.assertFalse(hasattr(Model, 'id'))
+
+        class M1(Model): pass
+        self.assertTrue(hasattr(M1, 'id'))
+
+        class M2(Model):
+            key = CharField(primary_key=True)
+        self.assertFalse(hasattr(M2, 'id'))
+
+        class M3(Model):
+            id = TextField()
+            key = IntegerField(primary_key=True)
+        self.assertTrue(hasattr(M3, 'id'))
+        self.assertFalse(M3.id.primary_key)
+
+        class C1(M1): pass
+        self.assertTrue(hasattr(C1, 'id'))
+        self.assertTrue(C1.id.model_class is C1)
+
+        class C2(M2): pass
+        self.assertFalse(hasattr(C2, 'id'))
+        self.assertTrue(C2.key.primary_key)
+        self.assertTrue(C2.key.model_class is C2)
+
+        class C3(M3): pass
+        self.assertTrue(hasattr(C3, 'id'))
+        self.assertFalse(C3.id.primary_key)
+        self.assertTrue(C3.id.model_class is C3)
+
 
 class TestAliasBehavior(ModelTestCase):
     requires = [UpperModel]
@@ -2136,3 +2259,69 @@ class TestJoinNullableForeignKey(ModelTestCase):
             (None, None),
             (None, None),
         ])
+
+
+class TestDefaultDirtyBehavior(PeeweeTestCase):
+    def setUp(self):
+        super(TestDefaultDirtyBehavior, self).setUp()
+        DefaultsModel.drop_table(True)
+        DefaultsModel.create_table()
+
+    def test_default_dirty(self):
+        DM = DefaultsModel
+        DM._meta.only_save_dirty = True
+
+        dm = DM()
+        dm.save()
+
+        self.assertEqual(dm.field, 1)
+        self.assertEqual(dm.control, 1)
+
+        dm_db = DM.get((DM.field == 1) & (DM.control == 1))
+        self.assertEqual(dm_db.field, 1)
+        self.assertEqual(dm_db.control, 1)
+
+        # No changes.
+        self.assertFalse(dm_db.save())
+
+        dm2 = DM.create()
+        self.assertEqual(dm2.field, 3)  # One extra when fetched from DB.
+        self.assertEqual(dm2.control, 1)
+
+        dm._meta.only_save_dirty = False
+
+        dm3 = DM()
+        self.assertEqual(dm3.field, 4)
+        self.assertEqual(dm3.control, 1)
+        dm3.save()
+
+        dm3_db = DM.get(DM.id == dm3.id)
+        self.assertEqual(dm3_db.field, 4)
+
+
+class TestFunctionCoerceRegression(PeeweeTestCase):
+    def test_function_coerce(self):
+        class M1(Model):
+            data = IntegerField()
+            class Meta:
+                database = in_memory_db
+
+        class M2(Model):
+            id = IntegerField()
+            class Meta:
+                database = in_memory_db
+
+        in_memory_db.create_tables([M1, M2])
+
+        for i in range(3):
+            M1.create(data=i)
+            M2.create(id=i + 1)
+
+        qm1 = M1.select(fn.GROUP_CONCAT(M1.data).coerce(False).alias('data'))
+        qm2 = M2.select(fn.GROUP_CONCAT(M2.id).coerce(False).alias('ids'))
+
+        m1 = qm1.get()
+        self.assertEqual(m1.data, '0,1,2')
+
+        m2 = qm2.get()
+        self.assertEqual(m2.ids, '1,2,3')

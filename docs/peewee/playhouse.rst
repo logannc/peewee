@@ -10,6 +10,7 @@ Below you will find a loosely organized listing of the various modules that make
 **Database drivers / vendor-specific database functionality**
 
 * :ref:`sqlite_ext`
+* :ref:`sqliteq`
 * :ref:`sqlite_udf`
 * :ref:`apsw`
 * :ref:`berkeleydb`
@@ -61,7 +62,7 @@ sqlite_ext API notes
 
 .. py:class:: SqliteExtDatabase(database, pragmas=(), c_extensions=True, **kwargs)
 
-    :param pragmas: A list of 2-tuples containing ``PRAGMA`` settings to configure on a per-connection basis.
+    :param pragmas: A list or tuple of 2-tuples containing ``PRAGMA`` settings to configure on a per-connection basis.
     :param bool c_extensions: Boolean flag indicating whether to use the fast implementations of various SQLite user-defined functions. If Cython was installed when you built ``peewee``, then these functions should be available. If not, Peewee will fall back to using the slower pure-Python functions.
 
     Subclass of the :py:class:`SqliteDatabase` that provides some advanced features only offered by Sqlite.
@@ -884,6 +885,103 @@ sqlite_ext API notes
 
     .. note:: For an in-depth discussion of the SQLite transitive closure extension, check out this blog post, `Querying Tree Structures in SQLite using Python and the Transitive Closure Extension <http://charlesleifer.com/blog/querying-tree-structures-in-sqlite-using-python-and-the-transitive-closure-extension/>`_.
 
+.. _sqliteq:
+
+SqliteQ
+-------
+
+The ``playhouse.sqliteq`` module provides a subclass of :py:class:`SqliteExtDatabase`,
+that will serialize concurrent access to a SQLite database. The :py:class:`SqliteQueueDatabase`
+is meant to be used as a drop-in replacement, and all the magic happens below
+the public APIs. This should hopefully make it very easy to integrate into an
+existing application.
+
+.. note::
+    This is a new module and should be considered alpha-quality software.
+
+Explanation
+^^^^^^^^^^^
+
+It is important to understand the way SQLite handles concurrency when using
+`write-ahead logging <https://www.sqlite.org/wal.html>`_, but in the simpleset
+terms only one connection can write to the database at a time **and** any
+number of other connections can read while the database is being written to.
+Or, in other words, readers don't block the writer, and the writer doesn't
+block the readers.
+
+An example that comes to my mind is a web application, which handles each
+request in a separate thread/greenlet. If the application is particularly busy
+and there are multiple connections open at a given point in time, you can end
+up in a bad situation quickly because SQLite limits you to one writer. This
+typically manifests as ``OperationalError: database is locked`` exceptions.
+
+Due to the global interpreter lock, however, Python appears single-threaded to
+other applications (only one thread can run Python code at a time, per
+interpreter process). It follows then, that even though multiple threads are
+attempting to access the SQLite database, SQLite only sees one thread accessing
+the database at any point in time.
+
+So, what we can do is create a single *worker* thread that is responsible for
+all writes to the database, and have our other request-handling threads
+hand-off their writes. In this way, we'll have our cake and eat it, too -- our
+Python application can queue-up writes from as many threads as it wants and we
+should hardly notice the performance hit that comes from pushing all database
+accesses through a single thread.
+
+Code sample
+^^^^^^^^^^^
+
+Creating a database instance does not require any special handling. The
+:py:class:`SqliteQueueDatabase` accepts some special parameters which you
+should be aware of, though. If you are using `gevent <http://gevent.org>`_, you
+must specify ``use_gevent=True`` when instantiating your database -- this way
+Peewee will know to use the appropriate objects for handling queueing, thread
+creation, and locking.
+
+.. code-block:: python
+
+    from playhouse.sqliteq import SqliteQueueDatabase
+
+    db = SqliteQueueDatabase(
+        'my_app.db',
+        use_gevent=False,  # Use standard library "threading" module.
+        autostart=False,  # Do not automatically start the workers.
+        queue_max_size=1024,  # Max. # of pending writes that can accumulate.
+        readers=4,  # Size of reader thread-pool - these handle non-writes.
+        results_timeout=5.0)  # Max. time to wait for query to be executed.
+
+
+If ``autostart=False``, as in the above example, you will need to call
+:py:meth:`~SqliteQueueDatabase.start` to bring up the worker threads that will
+do the actual query execution. Additionally, because the connections are
+managed by the database class itself, you do not need to call
+:py:meth:`~Database.connect` or :py:meth:`~Database.close` at any point in your
+application.
+
+.. code-block:: python
+
+    @app.before_first_request
+    def _start_worker_threads():
+        db.start()
+
+When your application is ready to terminate, use the
+:py:meth:`~SqliteQueueDatabase.stop` method to shut down the worker threads.
+If there was a backlog of work, then this method will block until all pending
+work is finished (though no new work is allowed).
+
+.. code-block:: python
+
+    import atexit
+
+    @atexit.register
+    def _stop_worker_threads():
+        db.stop()
+
+
+Lastly, the :py:meth:`~SqliteQueueDatabase.is_stopped` method can be used to
+determine whether the database workers are up and running.
+
+
 .. _sqlite_udf:
 
 Sqlite User-Defined Functions
@@ -1177,7 +1275,7 @@ Example:
             db.get_tables()
         except DatabaseError as exc:
             # We only allow a specific [somewhat cryptic] error message.
-            if exc.message != 'file is encrypted or is not a database':
+            if exc.args[0] != 'file is encrypted or is not a database':
                 raise exc
             else:
                 tell_user_the_passphrase_was_wrong()
@@ -1984,7 +2082,7 @@ postgres_ext API notes
 DataSet
 -------
 
-The *dataset* module contains a high-level API for working with databases modeled after the popular `project of the same name <https://dataset.readthedocs.org/en/latest/index.html>`_. The aims of the *dataset* module are to provide:
+The *dataset* module contains a high-level API for working with databases modeled after the popular `project of the same name <https://dataset.readthedocs.io/en/latest/index.html>`_. The aims of the *dataset* module are to provide:
 
 * A simplified API for working with relational data, along the lines of working with JSON.
 * An easy way to export relational data as JSON or CSV.
@@ -4005,7 +4103,7 @@ Contains utilities helpful when testing peewee projects.
     using a "test-only" database.
 
     :param Database db: Database to use with the given models
-    :param models: a ``list`` of :py:class:`Model` classes to use with the ``db``
+    :param models: a ``list`` or ``tuple`` of :py:class:`Model` classes to use with the ``db``
     :param boolean create_tables: Whether tables should be automatically created
         and dropped.
     :param boolean fail_silently: Whether the table create / drop should fail
@@ -4036,6 +4134,10 @@ Contains utilities helpful when testing peewee projects.
 
                     # Perform assertions on test data inside ctx manager.
                     self.assertEqual(Tweet.timeline('user-0') [...])
+
+                with test_database(test_db, (User,)):
+                    # Test something that just affects user.
+                    self.test_some_user_thing()
 
                 # once we exit the context manager, we're back to using the normal database
 

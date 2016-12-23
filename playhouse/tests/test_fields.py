@@ -1,10 +1,16 @@
+import calendar
 import datetime
 import decimal
 import sys
+import time
 import uuid
 
 from peewee import MySQLDatabase
 from peewee import Param
+from peewee import Proxy
+from peewee import SqliteDatabase
+from peewee import binary_construct
+from peewee import sqlite3
 from playhouse.tests.base import binary_construct
 from playhouse.tests.base import binary_types
 from playhouse.tests.base import database_class
@@ -25,25 +31,43 @@ class TestFieldTypes(ModelTestCase):
     _d = datetime.date
     _t = datetime.time
 
-    _data = (
-        ('char_field', 'text_field', 'int_field', 'float_field', 'decimal_field1', 'datetime_field', 'date_field', 'time_field', 'fixed_char_field'),
-        ('c1',         't1',         1,           1.0,           "1.0",            _dt(2010, 1, 1),  _d(2010, 1, 1), _t(1, 0), 'fc1'),
-        ('c2',         't2',         2,           2.0,           "2.0",            _dt(2010, 1, 2),  _d(2010, 1, 2), _t(2, 0), 'fc2'),
-        ('c3',         't3',         3,           3.0,           "3.0",            _dt(2010, 1, 3),  _d(2010, 1, 3), _t(3, 0), 'fc3'),
-    )
+    field_data = {
+        'char_field': ('c1', 'c2', 'c3'),
+        'date_field': (
+            _d(2010, 1, 1),
+            _d(2010, 1, 2),
+            _d(2010, 1, 3)),
+        'datetime_field': (
+            _dt(2010, 1, 1, 0, 0),
+            _dt(2010, 1, 2, 0, 0),
+            _dt(2010, 1, 3, 0, 0)),
+        'decimal_field1': ('1.0', '2.0', '3.0'),
+        'fixed_char_field': ('fc1', 'fc2', 'fc3'),
+        'float_field': (1.0, 2.0, 3.0),
+        'int_field': (1, 2, 3),
+        'text_field': ('t1', 't2', 't3'),
+        'time_field': (
+            _t(1, 0),
+            _t(2, 0),
+            _t(3, 0)),
+        'ts_field': (
+            _dt(2010, 1, 1, 0, 0),
+            _dt(2010, 1, 2, 0, 0),
+            _dt(2010, 1, 3, 0, 0)),
+        'ts_field2': (
+            _dt(2010, 1, 1, 13, 37, 1, 123456),
+            _dt(2010, 1, 2, 13, 37, 1, 123456),
+            _dt(2010, 1, 3, 13, 37, 1, 123456)),
+    }
+    value_table = list(zip(*[(k,) + v for k, v in field_data.items()]))
 
     def setUp(self):
         super(TestFieldTypes, self).setUp()
-        self.field_data = {}
-
-        headers = self._data[0]
-        for row in self._data[1:]:
+        header, values = self.value_table[0], self.value_table[1:]
+        for row in values:
             nm = NullModel()
             for i, col in enumerate(row):
-                attr = headers[i]
-                self.field_data.setdefault(attr, [])
-                self.field_data[attr].append(col)
-                setattr(nm, attr, col)
+                setattr(nm, header[i], col)
             nm.save()
 
     def assertNM(self, q, exp):
@@ -371,6 +395,82 @@ class TestFieldTypes(ModelTestCase):
             {'nugs': 'c3-nuggets'},
             {'nugs': 'foo-nuggets'},
             {'nugs': 'bar-nuggets'}])
+
+    def test_field_aliasing(self):
+        username = User.username
+        user_fk = Blog.user
+        blog_pk = Blog.pk
+
+        for i in range(2):
+            username = username.clone()
+            user_fk = user_fk.clone()
+            blog_pk = blog_pk.clone()
+
+            self.assertEqual(username.name, 'username')
+            self.assertEqual(username.model_class, User)
+
+            self.assertEqual(user_fk.name, 'user')
+            self.assertEqual(user_fk.model_class, Blog)
+            self.assertEqual(user_fk.rel_model, User)
+
+            self.assertEqual(blog_pk.name, 'pk')
+            self.assertEqual(blog_pk.model_class, Blog)
+            self.assertTrue(blog_pk.primary_key)
+
+
+class TestTimestampField(ModelTestCase):
+    requires = [TimestampModel]
+
+    def test_timestamp_field(self):
+        dt = datetime.datetime(2016, 1, 2, 11, 12, 13, 654321)
+        d_dt = datetime.datetime(2016, 1, 3)
+        d = d_dt.date()
+
+        t1 = TimestampModel.create(local_us=dt, utc_ms=dt, local=dt)
+        t2 = TimestampModel.create(local_us=d, utc_ms=d, local=d)
+
+        t1_db = TimestampModel.get(TimestampModel.local_us == dt)
+        self.assertEqual(t1_db.id, t1.id)
+        self.assertEqual(t1_db.local_us, dt)
+        self.assertEqual(t1_db.utc_ms, dt.replace(microsecond=654000))
+        self.assertEqual(t1_db.local,
+                         dt.replace(microsecond=0).replace(second=14))
+
+        t2_db = TimestampModel.get(TimestampModel.utc_ms == d)
+        self.assertEqual(t2_db.id, t2.id)
+        self.assertEqual(t2_db.local_us, d_dt)
+        self.assertEqual(t2_db.utc_ms, d_dt)
+        self.assertEqual(t2_db.local, d_dt)
+
+        dt += datetime.timedelta(days=1, seconds=3600)
+        dt_us = dt.microsecond / 1000000.
+        ts = time.mktime(dt.timetuple()) + dt_us
+        utc_ts = calendar.timegm(dt.utctimetuple()) + dt_us
+        t3 = TimestampModel.create(local_us=ts, utc_ms=utc_ts, local=ts)
+
+        t3_db = TimestampModel.get(TimestampModel.local == ts)
+        self.assertEqual(t3_db.id, t3.id)
+
+        expected = datetime.datetime(2016, 1, 3, 12, 12, 13)
+        self.assertEqual(t3_db.local_us, expected.replace(microsecond=654321))
+        self.assertEqual(t3_db.utc_ms, expected.replace(microsecond=654000))
+        self.assertEqual(t3_db.local, expected.replace(second=14))
+
+
+class TestBinaryTypeFromDatabase(PeeweeTestCase):
+    @skip_test_if(lambda: sys.version_info[0] == 3)
+    def test_binary_type_info(self):
+        db_proxy = Proxy()
+        class A(Model):
+            blob_field = BlobField()
+            class Meta:
+                database = db_proxy
+
+        self.assertTrue(A.blob_field._constructor is binary_construct)
+
+        db = SqliteDatabase(':memory:')
+        db_proxy.initialize(db)
+        self.assertTrue(A.blob_field._constructor is sqlite3.Binary)
 
 class TestDateTimeExtract(ModelTestCase):
     requires = [NullModel]
