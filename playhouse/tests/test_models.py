@@ -961,34 +961,28 @@ class TestModelAPIs(ModelTestCase):
     def test_first(self):
         users = User.create_users(3)
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             sq = User.select().order_by(User.username)
 
             # call it once
             first = sq.first()
             self.assertEqual(first.username, 'u1')
 
-            # check the result cache
-            self.assertEqual(len(sq._qr._result_cache), 1)
-
-            # call it again and we get the same result, but not an
-            # extra query
+            # call it again and we get the same result, with an
+            # second query
             self.assertEqual(sq.first().username, 'u1')
 
-        with self.assertQueryCount(0):
-            # also note that a limit has been applied.
-            all_results = [obj for obj in sq]
-            self.assertEqual(all_results, [first])
-
+        with self.assertQueryCount(1):
+            # note that NO limit has been applied to the original query. (change from coleifer/peewee)
+            # all three users should be returned
             usernames = [u.username for u in sq]
-            self.assertEqual(usernames, ['u1'])
+            self.assertEqual(usernames, ['u1','u2','u3'])
 
-        with self.assertQueryCount(0):
+        with self.assertQueryCount(1):
             # call first() after iterating
             self.assertEqual(sq.first().username, 'u1')
-
             usernames = [u.username for u in sq]
-            self.assertEqual(usernames, ['u1'])
+            self.assertEqual(usernames, ['u1','u2','u3'])
 
         # call it with an empty result
         sq = User.select().where(User.username == 'not-here')

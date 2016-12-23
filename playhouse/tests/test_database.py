@@ -194,7 +194,7 @@ class TestDroppingIndex(ModelTestCase):
             IndexedModel._drop_indexes()
 
         self.assertEqual(sorted(query_log.queries), sorted([
-            ('DROP INDEX "%s"' % idx.name, []) for idx in indexes]))
+            ('DROP INDEX %s' % idx.name, []) for idx in indexes]))
         self.assertEqual(db.get_indexes(IndexedModel._meta.db_table), [])
 
 

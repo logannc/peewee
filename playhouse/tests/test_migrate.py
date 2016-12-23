@@ -623,7 +623,7 @@ class SqliteMigrationTestCase(BaseMigrationTestCase, PeeweeTestCase):
             ('CREATE UNIQUE INDEX indexmodel_data '
              'ON indexmodel ("data")', []),
             ('CREATE UNIQUE INDEX indexmodel_first_name_last_name '
-             'ON indexmodel" (first, last_name)', [])
+             'ON indexmodel (first, last_name)', [])
         ])
 
 

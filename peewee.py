@@ -3753,9 +3753,9 @@ class Database(object):
                 raise Exception('Error, database not properly initialized '
                                 'before closing connection')
             with self.exception_wrapper():
-                if self.__local.conn is not None:
-                    self._close(self.__local.conn)
-                self.__local.closed = True
+                if self._local.conn is not None:
+                    self._close(self._local.conn)
+                self._local.closed = True
 
     def get_conn(self):
         if self._local.context_stack:
