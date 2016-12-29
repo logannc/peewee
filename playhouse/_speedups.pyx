@@ -189,7 +189,7 @@ cdef class _QueryResultWrapper(object):
             return False
 
         if (node_type == 'field') is True:
-            self.column_names.append(node._alias or arg._alias or arg.name)
+            self.column_names.append(node._alias or node.name)
             self.converters.append(arg.python_value if node._coerce else None)
             return True
 

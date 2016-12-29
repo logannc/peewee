@@ -2371,7 +2371,7 @@ class ExtQueryResultWrapper(QueryResultWrapper):
         elif isinstance(node, Func) and len(node.arguments):
             arg = node.arguments[0]
             if isinstance(arg, Field):
-                name = node._alias or arg._alias or arg.name
+                name = node._alias or node.name
                 func = node._coerce and arg.python_value or None
                 self.conv.append((i, name, func))
                 return True
