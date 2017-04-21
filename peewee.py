@@ -4622,7 +4622,7 @@ class ModelOptions(object):
     def __init__(self, cls, database=None, db_table=None, db_table_func=None,
                  indexes=None, order_by=None, primary_key=None,
                  table_alias=None, constraints=None, schema=None,
-                 validate_backrefs=True, only_save_dirty=False, **kwargs):
+                 validate_backrefs=True, only_save_dirty=True, **kwargs):
         self.model_class = cls
         self.name = cls.__name__.lower()
         self.fields = {}
