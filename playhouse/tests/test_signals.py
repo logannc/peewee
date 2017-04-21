@@ -42,6 +42,7 @@ class SignalsTestCase(ModelTestCase):
         self.assertEqual(state, [(ModelA, m, None, True)])
         self.assertEqual(res, 1)
 
+        m.a = 'a' # give peewee something to save
         res = m.save()
         self.assertTrue(m.id is not None)
         self.assertEqual(state[-1], (ModelA, m, m.id, False))
