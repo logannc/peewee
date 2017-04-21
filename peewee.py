@@ -5159,6 +5159,9 @@ class Model(with_metaclass(BaseModel)):
                     field_dict.pop(pk_part_name, None)
             else:
                 field_dict.pop(pk_field.name, None)
+            if not field_dict:
+                self._dirty.clear()
+                return False
             rows = self.update(**field_dict).where(self._pk_expr()).execute()
         elif pk_field is None:
             self.insert(**field_dict).execute()
