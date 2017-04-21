@@ -519,8 +519,9 @@ class TestPrefetchDetection(ModelTestCase):
 
     def test_prefetched_nonsense(self):
         u2 = Child.select().first()
-        with self.assertRaises(AttributeError):
+        def f():
           u2.prefetched(Orphan.parent)
+        self.assertRaises(AttributeError, f)
 
     def test_prefetched_set(self):
         u2 = Parent.ALL.plus(Child.parent).first()
