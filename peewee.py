@@ -5175,6 +5175,16 @@ class Model(with_metaclass(BaseModel)):
     def is_dirty(self):
         return bool(self._dirty)
 
+    def prefetched(self, fk):
+        '''
+            Accepts a ForeignKeyField.
+            Returns true/false representing if accessing this attribute will trigger a database query. 
+        '''
+        if not isinstance(self, fk.model_class):
+          raise AttributeError('ForeignKeyField %s is not part of this model.' % fk)
+        if getattr(self, fk.db_column) is None: return True
+        return fk.name in self._obj_cache
+
     @property
     def dirty_fields(self):
         return [f for f in self._meta.sorted_fields if f.name in self._dirty]

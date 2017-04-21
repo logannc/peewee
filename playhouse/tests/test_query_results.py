@@ -484,6 +484,45 @@ class TestQueryResultWrapper(ModelTestCase):
         self.assertEqual(results, [('u1', 'u1'), ('u2', 'u2')])
 
 
+class TestPrefetchDetection(ModelTestCase):
+    requires = [Parent, Child, Orphan]
+
+    def setUp(self):
+        super(TestPrefetchDetection, self).setUp()
+        u1 = Parent.create(data='u1')
+        u2 = Child.create(parent=u1, data='u2')
+        u3 = Orphan.create(data='u3')
+
+    def test_prefetched(self):
+        u2 = (Child
+             .select(Child, Parent)
+             .join(Parent)
+             .first())
+        self.assertTrue(u2.prefetched(Child.parent))
+
+    def test_not_prefetched(self):
+        u2 = Child.select().first()
+        self.assertFalse(u2.prefetched(Child.parent))
+
+    def test_prefetched_null(self):
+        u3 = (Orphan
+             .select(Orphan, Parent)
+             .join(Parent, JOIN.LEFT_OUTER)
+             .first())
+        self.assertTrue(u3.prefetched(Orphan.parent))
+
+    def test_not_prefetched_null(self):
+        u3 = Orphan.select().first()
+        # even though it's not joined, we know the model
+        # is null because the FK value is null.
+        self.assertTrue(u3.prefetched(Orphan.parent))
+
+    def test_prefetched_nonsense(self):
+        u1 = Parent.select().first()
+        with self.assertRaises(AttributeError):
+          u1.prefetched(Orphan.parent)
+
+
 class TestJoinedInstanceConstruction(ModelTestCase):
     requires = [Blog, User, Relationship]
 
