@@ -518,9 +518,14 @@ class TestPrefetchDetection(ModelTestCase):
         self.assertTrue(u3.prefetched(Orphan.parent))
 
     def test_prefetched_nonsense(self):
-        u1 = Parent.select().first()
+        u2 = Child.select().first()
         with self.assertRaises(AttributeError):
-          u1.prefetched(Orphan.parent)
+          u2.prefetched(Orphan.parent)
+
+    def test_prefetched_set(self):
+        u2 = Parent.ALL.plus(Child.parent).first()
+        self.assertTrue(u2.prefetched(Child.parent))
+
 
 
 class TestJoinedInstanceConstruction(ModelTestCase):

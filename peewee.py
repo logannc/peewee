@@ -5180,10 +5180,12 @@ class Model(with_metaclass(BaseModel)):
             Accepts a ForeignKeyField.
             Returns true/false representing if accessing this attribute will trigger a database query. 
         '''
-        if not isinstance(self, fk.model_class):
-          raise AttributeError('ForeignKeyField %s is not part of this model.' % fk)
-        if getattr(self, fk.db_column) is None: return True
-        return fk.name in self._obj_cache
+        if isinstance(self, fk.model_class):
+            if getattr(self, fk.db_column) is None: return True
+            return fk.name in self._obj_cache
+        if isinstance(self, fk.rel_model):
+            return isinstance(getattr(self, fk._get_related_name()), list)
+        raise AttributeError('ForeignKeyField %s is not related to this model.' % fk)
 
     @property
     def dirty_fields(self):
