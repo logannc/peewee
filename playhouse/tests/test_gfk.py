@@ -9,6 +9,7 @@ db = database_initializer.get_in_memory_database()
 class BaseModel(Model):
     class Meta:
         database = db
+        only_save_dirty = False
 
     def add_tag(self, tag):
         t = Tag(tag=tag)
