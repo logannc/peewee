@@ -2856,7 +2856,7 @@ class Query(Node):
             for side, piece in (('lhs', curr.lhs), ('rhs', curr.rhs)):
                 if isinstance(piece, DQ):
                     query, joins = self.convert_dict_to_node(piece.query)
-                    dq_joins.update(joins)
+                    # dq_joins.update(joins)
                     expression = reduce(operator.and_, query)
                     # Apply values from the DQ object.
                     expression._negated = piece._negated
