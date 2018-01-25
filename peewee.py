@@ -4896,10 +4896,10 @@ class MagicAll(object):
         self.__dict__['cls'] = cls
         
     def __iter__(self):
-      return self.__dict__['cls'].select().__iter__()
+      return self.__dict__['cls'].select(self.__dict__['cls']).__iter__()
       
     def __getattr__(self, name):
-        return getattr(self.__dict__['cls'].select(), name)
+        return getattr(self.__dict__['cls'].select(self.__dict__['cls']), name)
     
 
 class Model(with_metaclass(BaseModel)):
