@@ -239,6 +239,8 @@ Is the same as this:
 
 It's just a nomenclature I preferred from Django.  I made it uppercase to prevent conflicts with any columns named "all", and to highlight that it's effectively a constant.
 
+Notably, the ALL shortcut makes queries context independent. It selects all columns from the table whereas the default Peewee behaviour for `Person.select()` is context dependent. A normal query like `Person.select()` is equivalent to `select * from person`, but a subquery like `Article.select().join(Person.select())` becomes `select * from article join (select id from person)` by only selecting the primary key of subqueries using `select()` with no arguments. 
+
 
 A New (Additional) Join Syntax
 ------------------------------
